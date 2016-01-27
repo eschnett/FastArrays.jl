@@ -278,9 +278,26 @@ export FlexArray
                 $(Expr(:block, body...)))
         end)
 
-    eval(@show Expr(:block, decls...))
+    eval(Expr(:block, decls...))
 
     typename
+end
+
+@inline function FlexArray(dimspecs...)
+    @assert isa(dimspecs, Tuple)
+    dimspectuple = ntuple(length(dimspecs)) do n
+        dimspec = dimspecs[n]
+        if isa(dimspec, Colon)
+            (Nullable{Int}(), Nullable{Int}())
+        elseif isa(dimspec, Integer)
+            (Nullable(Int(dimspec)), Nullable{Int}())
+        elseif isa(dimspec, UnitRange)
+            (Nullable(Int(dimspec.start)), Nullable(Int(dimspec.stop)))
+        else
+            @assert false
+        end
+    end
+    FlexArray(Val{dimspectuple})
 end
 
 end

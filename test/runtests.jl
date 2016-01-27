@@ -1,10 +1,26 @@
 using FlexibleArrays
 using Base.Test
 
+FlexArray()
+
+FlexArray(1:10)
+FlexArray(1)
+FlexArray(:)
+
+FlexArray(1:10,1:10)
+FlexArray(1:10,1)
+FlexArray(1:10,:)
+FlexArray(1,1:10)
+FlexArray(1,1)
+FlexArray(1,:)
+FlexArray(:,1:10)
+FlexArray(:,1)
+FlexArray(:,:)
+
 # 0D
 
-Arr0 = FlexArray(Val{()}){Float64}
-Arr0b = FlexArray(Val{()}){Int}
+Arr0 = FlexArray(){Float64}
+Arr0b = FlexArray(){Int}
 @test eltype(Arr0) === Float64
 @test length(Arr0) === 1
 
@@ -17,7 +33,7 @@ arr0[] = 42
 
 # 1D
 
-Arr1_fix = FlexArray(Val{((Nullable{Int}(1), Nullable{Int}(10)),)}){Float64}
+Arr1_fix = FlexArray(1:10){Float64}
 @test eltype(Arr1_fix) === Float64
 @test length(Arr1_fix) === 10
 @test lbnd(Arr1_fix, 1) === 1
@@ -36,7 +52,7 @@ for i in 1:10
     @test arr1_fix[i] === 42.0+i
 end
 
-Arr1_lb = FlexArray(Val{((Nullable{Int}(1), Nullable{Int}()),)}){Float64}
+Arr1_lb = FlexArray(1){Float64}
 @test eltype(Arr1_lb) === Float64
 @test lbnd(Arr1_fix, 1) === 1
 arr1_lb = Arr1_lb(10)
@@ -46,7 +62,7 @@ arr1_lb = Arr1_lb(10)
 @test ubnd(arr1_lb, 1) === 10
 @test size(arr1_lb, 1) === 10
 
-Arr1_gen = FlexArray(Val{((Nullable{Int}(), Nullable{Int}()),)}){Float64}
+Arr1_gen = FlexArray(:){Float64}
 @test eltype(Arr1_gen) === Float64
 arr1_gen = Arr1_gen(1,10)
 @test eltype(arr1_gen) === Float64
@@ -96,6 +112,5 @@ for bnds1 in [(1,10), (:,10), (1,:), (:,:)],
 
 end
 
-Arr3 = FlexArray(Val{(ds((0,3)), ds((0,:)), ds((0,:)))}){Int}
+Arr3 = FlexArray(0:3, 0, 0){Int}
 arr3 = Arr3(4,5)
-@code_native arr3[1,2,3]
