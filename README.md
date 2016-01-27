@@ -71,105 +71,118 @@ Each flexible array type is subtype of `AbstractFlexArray{T,N}`, where `T` is th
 
 - Define a flexible array type:
 
-  `FlexArray(<dimspec>*)`
+  ```Julia
+  FlexArray(<dimspec>*)
+  ```
 
   Example:
 
-  `typealias MyArrayType = FlexArray(1:2, 1, :)`
+  ```Julia
+  typealias MyArrayType = FlexArray(1:2, 1, :)
+  ```
 
 - Allocate an array:
 
-  `FlexArray(<dimspec>*){<type>}(<flexible bounds>*)`
+  ```Julia
+  FlexArray(<dimspec>*){<type>}(<flexible bounds>*)
+  ```
 
   Example:
   Create an array with bounds `(1:2, 1:10, 1:10)`:
 
-  `myarray = MyArrayType{Float64}(:, 10, 1:10)`
+  ```Julia
+  myarray = MyArrayType{Float64}(:, 10, 1:10)
+  ```
 
 - Element type:
 
-  `eltype{T}(arr::FlexArray(...){T})`
-  `eltype{T}(::Type{FlexArray(...){T}})`
+  ```Julia
+  eltype{T}(arr::FlexArray(...){T})
+  eltype{T}(::Type{FlexArray(...){T}})
+  ```
 
   Example:
 
-  `eltype(myarray)`
-
-  `eltype(MyArrayType)`
+  ```Julia
+  eltype(myarray)
+  eltype(MyArrayType)
+  ```
 
 - Rank (number of dimension):
 
-  `ndims{T}(arr::FlexArray(...){T})`
-  `ndims{T}(::Type{FlexArray(...){T}})`
+  ```Julia
+  ndims{T}(arr::FlexArray(...){T})
+  ndims{T}(::Type{FlexArray(...){T}})
+  ```
 
   Example:
 
-  `ndims(myarray)`
-
-  `ndims(MyArrayType)`
+  ```Julia
+  ndims(myarray)
+  ndims(MyArrayType)
+  ```
 
 - Array length:
 
-  `length{T}(arr::FlexArray(...){T})`
+  ```Julia
+  length{T}(arr::FlexArray(...){T})
+  ```
 
   If all bounds are fixed, then the array length can also be obtained from the type:
 
-  `length{T}(::Type{FlexArray(...){T}})`
+  ```Julia
+  length{T}(::Type{FlexArray(...){T}})
+  ```
 
   Example:
 
-  `length(myarray)` (returns `200`)
+  ```Julia
+  length(myarray)
+  ```
 
 - Array bounds and sizes:
 
-  `lbnd{T}(arr::FlexArray(...){T}, n::Int)`
-
-  `ubnd{T}(arr::FlexArray(...){T}, n::Int)`
-
-  `size{T}(arr::FlexArray(...){T}, n::Int)`
-
-  `lbnd{T}(arr::FlexArray(...){T})`
-
-  `ubnd{T}(arr::FlexArray(...){T})`
-
-  `size{T}(arr::FlexArray(...){T})`
+  ```Julia
+  lbnd{T}(arr::FlexArray(...){T}, n::Int)
+  ubnd{T}(arr::FlexArray(...){T}, n::Int)
+  size{T}(arr::FlexArray(...){T}, n::Int)
+  lbnd{T}(arr::FlexArray(...){T})
+  ubnd{T}(arr::FlexArray(...){T})
+  size{T}(arr::FlexArray(...){T})
+  ```
 
   Fixed bounds and sizes can also be obtained from the type"
 
-  `lbnd{T,n}(::Type{FlexArray(...){T}}, ::Val{n})`
-
-  `ubnd{T,n}(::Type{FlexArray(...){T}}, ::Val{n})`
-
-  `size{T,n}(::Type{FlexArray(...){T}}, ::Val{n})`
-
-  `lbnd{T}(::Type{FlexArray(...){T}})`
-
-  `ubnd{T}(::Type{FlexArray(...){T}})`
-
-  `size{T}(::Type{FlexArray(...){T}})`
+  ```Julia
+  lbnd{T,n}(::Type{FlexArray(...){T}}, ::Val{n})
+  ubnd{T,n}(::Type{FlexArray(...){T}}, ::Val{n})
+  size{T,n}(::Type{FlexArray(...){T}}, ::Val{n})
+  lbnd{T}(::Type{FlexArray(...){T}})
+  ubnd{T}(::Type{FlexArray(...){T}})
+  size{T}(::Type{FlexArray(...){T}})
+  ```
 
   Example:
 
-  `lbnd(myarray, 3)`
-
-  `ubnd(myarray, Val{1})`
-
-  `size(myarray, 2)`
-
-  `lbnd(myarray)`
-
-  `ubnd(myarray)`
-
-  `size(myarray)`
+  ```Julia
+  lbnd(myarray, 3)
+  ubnd(myarray, Val{1})
+  size(myarray, 2)
+  lbnd(myarray)
+  ubnd(myarray)
+  size(myarray)
+  ```
 
 - Access array elements:
 
-  `getindex{T}(arr::FlexArray(...){T}, i::Int, j::Int, ...)`
-
-  `setindex!{T}(arr::FlexArray(...){T}, val, i::Int, j::Int, ...)`
+  ```Julia
+  getindex{T}(arr::FlexArray(...){T}, i::Int, j::Int, ...)
+  setindex!{T}(arr::FlexArray(...){T}, val, i::Int, j::Int, ...)
+  ```
 
   Example:
 
-  `myarray[1,2,3]`
-
-  `myarray[2,3,4] = 42`
+  ```Julia
+  myarray[1,2,3]
+  myarray[2,3,4] = 42
+  ```
