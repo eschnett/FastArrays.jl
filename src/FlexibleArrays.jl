@@ -79,11 +79,6 @@ import Base: convert, getindex, length, setindex!
 
 typealias DimSpec NTuple{2, Nullable{Int}}
 
-have_lb(ds::DimSpec) = !isnull(ds[1])
-have_ub(ds::DimSpec) = !isnull(ds[2])
-get_lb(ds::DimSpec) = get(ds[1])
-get_ub(ds::DimSpec) = get(ds[2])
-
 export FlexArray
 @generated function FlexArray{T}(::Type{Val{T}})
     @assert isa(T, Tuple)
@@ -92,19 +87,24 @@ export FlexArray
     rank = N
     dimspecs = T
 
+    have_lb(n::Int) = !isnull(dimspecs[n][1])
+    have_ub(n::Int) = !isnull(dimspecs[n][2])
+    get_lb(n::Int) = get(dimspecs[n][1])
+    get_ub(n::Int) = get(dimspecs[n][2])
+
     have_all_lb = true
     for n in 1:rank
-        have_all_lb &= have_lb(dimspecs[n])
+        have_all_lb &= have_lb(n)
     end
     have_all_ub = true
     for n in 1:rank
-        have_all_ub &= have_ub(dimspecs[n])
+        have_all_ub &= have_ub(n)
     end
     have_all_bnd = have_all_lb && have_all_ub
     if have_all_bnd
         size = 1
         for n in 1:rank
-            size *= max(0, get_ub(dimspecs[n]) - get_lb(dimspecs[n]) + 1)
+            size *= max(0, get_ub(n) - get_lb(n) + 1)
         end
     else
         size = nothing
@@ -115,21 +115,17 @@ export FlexArray
     have_str[1] = true
     get_str[1] = 1
     for n in 2:rank+1
-        have_str[n] =
-            have_str[n-1] && have_lb(dimspecs[n-1]) && have_ub(dimspecs[n-1])
+        have_str[n] = have_str[n-1] && have_lb(n-1) && have_ub(n-1)
         if have_str[n]
-            get_str[n] =
-                get_str[n-1] *
-                max(0, (get_ub(dimspecs[n-1]) - get_lb(dimspecs[n-1]) + 1))
+            get_str[n] = get_str[n-1] * max(0, (get_ub(n-1) - get_lb(n-1) + 1))
         else
             get_str[n] = nothing
         end
     end
 
-    have_offset = rank == 0 || have_str[rank] && have_lb(dimspecs[rank])
+    have_offset = rank == 0 || have_str[rank] && have_lb(rank)
     if have_offset
-        get_offset =
-            - sum(Int[get_str[n] * get_lb(dimspecs[n]) for n in 1:rank])
+        get_offset = - sum(Int[get_str[n] * get_lb(n) for n in 1:rank])
     else
         get_offset = nothing
     end
@@ -143,13 +139,13 @@ export FlexArray
     block = []
     for n in 1:rank
         # @show dimspecs
-        if have_lb(dimspecs[n])
-            push!(block, :(const $(symbol(:lbnd,n)) = $(get_lb(dimspecs[n]))))
+        if have_lb(n)
+            push!(block, :(const $(symbol(:lbnd,n)) = $(get_lb(n))))
         else
             push!(block, :($(symbol(:lbnd,n))::Int))
         end
-        if have_ub(dimspecs[n])
-            push!(block, :(const $(symbol(:ubnd,n)) = $(get_ub(dimspecs[n]))))
+        if have_ub(n)
+            push!(block, :(const $(symbol(:ubnd,n)) = $(get_ub(n))))
         else
             push!(block, :($(symbol(:ubnd,n))::Int))
         end
@@ -175,12 +171,12 @@ export FlexArray
     # Constructor
     funcargs = []
     for n in 1:rank
-        if !have_lb(dimspecs[n])
+        if !have_lb(n)
             push!(funcargs, :($(symbol(:lbnd,n))::Int))
         else
             push!(funcargs, :(::Void))
         end
-        if !have_ub(dimspecs[n])
+        if !have_ub(n)
             push!(funcargs, :($(symbol(:ubnd,n))::Int))
         else
             push!(funcargs, :(::Void))
@@ -216,22 +212,12 @@ export FlexArray
         let
             args = []
             for n in 1:rank
-                if !have_lb(dimspecs[n])
-                    push!(args, :($(symbol(:lbnd,n))))
-                end
-                if !have_ub(dimspecs[n])
-                    push!(args, :($(symbol(:ubnd,n))))
-                end
-                if !have_str[n]
-                    push!(args, :($(symbol(:str,n))))
-                end
+                !have_lb(n) && push!(args, :($(symbol(:lbnd,n))))
+                !have_ub(n) && push!(args, :($(symbol(:ubnd,n))))
+                !have_str[n] && push!(args, :($(symbol(:str,n))))
             end
-            if !have_str[rank+1]
-                push!(args, :size)
-            end
-            if !have_offset
-                push!(args, :offset)
-            end
+            !have_str[rank+1] && push!(args, :size)
+            !have_offset && push!(args, :offset)
             Expr(:call, :new, args..., :(Vector{T}(size)))
         end)
 
@@ -247,14 +233,14 @@ export FlexArray
 
     funcargs = []
     for n in 1:rank
-        if have_lb(dimspecs[n])
-            if have_ub(dimspecs[n])
+        if have_lb(n)
+            if have_ub(n)
                 push!(funcargs, :(::Colon))
             else
                 push!(funcargs, :($(symbol(:ubnd,n))::Int))
             end
         else
-            if have_ub(dimspecs[n])
+            if have_ub(n)
                 # no good syntax for this
             else
                 push!(funcargs, :($(symbol(:bnds,n))::UnitRange{Int}))
@@ -267,8 +253,8 @@ export FlexArray
         let
             args = []
             for n in 1:rank
-                if have_lb(dimspecs[n])
-                    if have_ub(dimspecs[n])
+                if have_lb(n)
+                    if have_ub(n)
                         push!(args, :nothing)
                         push!(args, :nothing)
                     else
@@ -276,7 +262,7 @@ export FlexArray
                         push!(args, :($(symbol(:ubnd,n))))
                     end
                 else
-                    if have_ub(dimspecs[n])
+                    if have_ub(n)
                         push!(args, 1)   # see above
                         push!(args, :nothing)
                     else
@@ -295,11 +281,11 @@ export FlexArray
     # Lower/upper bounds, size, length
 
     for n in 1:rank
-        if have_lb(dimspecs[n])
+        if have_lb(n)
             push!(decls, :(lbnd{T}(::$typename{T}, ::Type{Val{$n}}) =
-                $(get_lb(dimspecs[n]))))
+                $(get_lb(n))))
             push!(decls, :(lbnd{T}(::Type{$typename{T}}, ::Type{Val{$n}}) =
-                $(get_lb(dimspecs[n]))))
+                $(get_lb(n))))
         else
             push!(decls, :(lbnd{T}(arr::$typename{T}, ::Type{Val{$n}}) =
                 arr.$(symbol(:lbnd,n))))
@@ -308,11 +294,11 @@ export FlexArray
 
     push!(decls, :(export ubnd))
     for n in 1:rank
-        if have_ub(dimspecs[n])
+        if have_ub(n)
             push!(decls, :(ubnd{T}(::$typename{T}, ::Type{Val{$n}}) =
-                $(get_ub(dimspecs[n]))))
+                $(get_ub(n))))
             push!(decls, :(ubnd{T}(::Type{$typename{T}}, ::Type{Val{$n}}) =
-                $(get_ub(dimspecs[n]))))
+                $(get_ub(n))))
         else
             push!(decls, :(ubnd{T}(arr::$typename{T}, ::Type{Val{$n}}) =
                 arr.$(symbol(:ubnd,n))))
@@ -322,7 +308,7 @@ export FlexArray
     for n in 1:rank
         push!(decls, :(size{T}(arr::$typename{T}, ::Type{Val{$n}}) =
             ubnd(arr, Val{$n}) - lbnd(arr, Val{$n}) + 1))
-        if have_lb(dimspecs[n]) && have_ub(dimspecs[n])
+        if have_lb(n) && have_ub(n)
             push!(decls, :(size{T}(::Type{$typename{T}}, ::Type{Val{$n}}) =
                 ubnd($typename{T}, Val{$n}) - lbnd($typename{T}, Val{$n}) + 1))
         end
