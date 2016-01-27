@@ -40,6 +40,25 @@ end
 
 
 
+import Base: show
+@generated function show{T,N}(io::IO, arr::AbstractFlexArray{T,N})
+    inds = [symbol(:i,n) for n in 1:N]
+    elt = Expr(:call, :getindex, :arr, inds...)
+    stmt = :(print(io, $elt, " "))
+    for n in N:-1:1
+        stmt = quote
+            print(io, "[")
+            for $(symbol(:i,n)) in lbnd(arr,$n):ubnd(arr,$n)
+                $stmt
+            end
+            println(io, "]")
+        end
+    end
+    stmt
+end
+
+
+
 import Base: convert, getindex, length, setindex!
 
 typealias DimSpec NTuple{2, Nullable{Int}}

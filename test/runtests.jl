@@ -54,6 +54,7 @@ arr0 = Arr0()
 
 arr0[] = 42
 @test arr0[] === 42.0
+@test string(arr0) == "42.0 "
 
 # 1D
 
@@ -70,12 +71,15 @@ arr1_fix_b = Arr1_fix(nothing, nothing)
 @test lbnd(arr1_fix, 1) === 1
 @test ubnd(arr1_fix, 1) === 10
 @test size(arr1_fix, 1) === 10
+
 for i in 1:10
     arr1_fix[i] = 42+i
 end
 for i in 1:10
     @test arr1_fix[i] === 42.0+i
 end
+@test string(arr1_fix) ==
+    "[43.0 44.0 45.0 46.0 47.0 48.0 49.0 50.0 51.0 52.0 ]\n"
 
 Arr1_lb = FlexArray(1){Float64}
 @test eltype(Arr1_lb) === Float64
@@ -152,21 +156,6 @@ function init()
         end
     end
     b
-end
-
-import Base: show
-function show(io::IO, b::Box)
-    print(io, "[")
-    for j in lbnd(b,2):ubnd(b,2)
-        print(io, "[:,$j]=[")
-        for i in lbnd(b,1):ubnd(b,1)
-            print(io, b[i,j])
-            i != ubnd(b,1) && print(io, ",")
-        end
-        print(io, "]")
-        j != ubnd(b,2) && println(io, ",")
-    end
-    println(io, "]")
 end
 
 function process(oldb::Box)
