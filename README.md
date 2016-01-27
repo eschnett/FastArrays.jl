@@ -20,7 +20,7 @@ using FlexibleArrays
 
 # A (10x10) fixed-size array
 typealias Arr2d_10x10 FlexArray(1:10, 1:10)
-a2 = Arr2d_10x10{Float64}()
+a2 = Arr2d_10x10{Float64}(:,:)
 
 # A 3d array with lower index bounds 0
 typealias Arr3d_lb0 FlexArray(0, 0, 0)
@@ -31,7 +31,7 @@ typealias Arr4d_generic FlexArray(:, :, :, :)
 a4 = Arr4d_generic(1:10, 0:10, -1:10, 15:15)
 
 # These can be mixed: A (2x10) array
-FlexArray(0:1, 1){Float64}(10)
+FlexArray(0:1, 1){Float64}(:, 10)
 
 # Arrays can also be empty:
 FlexArray(4:13, 10:9)
@@ -60,7 +60,12 @@ For each dimension, the fixed bounds are set via:
 - An integer `lb` defining the lower bound
 - A colon `:` to indicate that both lower and upper bounds are flexible
 
-When an array is allocated, the flexible bounds have to be listed in order. (This might change in the future.)
+When an array is allocated, the flexible bounds are set conversely:
+- A colon `:` indicates no flexible bounds (if both bounds are fixed)
+- An integer `ub` defines the upper bound (if the lower bound is fixed)
+- A range `lb:ub` defines both lower and upper bounds
+
+Each flexible array type is subtype of `AbstractFlexArray{T,N}`, where `T` is the element type and `N` is the rank. This abstract is a subtype of `DenseArray{T,N}`.
 
 ### Available array functions:
 
@@ -70,19 +75,16 @@ When an array is allocated, the flexible bounds have to be listed in order. (Thi
 
   Example:
 
-  `FlexArray(1:2, 1, :)`
+  `typealias MyArrayType = FlexArray(1:2, 1, :)`
 
 - Allocate an array:
 
   `FlexArray(<dimspec>*){<type>}(<flexible bounds>*)`
 
   Example:
-
-  `typealias MyArrayType = FlexArray(1:2, 1, :)`
-
   Create an array with bounds `(1:2, 1:10, 1:10)`:
 
-  `myarray = MyArrayType{Float64}(10, 1, 10)`
+  `myarray = MyArrayType{Float64}(:, 10, 1:10)`
 
 - Element type:
 
@@ -94,6 +96,17 @@ When an array is allocated, the flexible bounds have to be listed in order. (Thi
   `eltype(myarray)`
 
   `eltype(MyArrayType)`
+
+- Rank (number of dimension):
+
+  `ndims{T}(arr::FlexArray(...){T})`
+  `ndims{T}(::Type{FlexArray(...){T}})`
+
+  Example:
+
+  `ndims(myarray)`
+
+  `ndims(MyArrayType)`
 
 - Array length:
 
@@ -115,6 +128,12 @@ When an array is allocated, the flexible bounds have to be listed in order. (Thi
 
   `size{T}(arr::FlexArray(...){T}, n::Int)`
 
+  `lbnd{T}(arr::FlexArray(...){T})`
+
+  `ubnd{T}(arr::FlexArray(...){T})`
+
+  `size{T}(arr::FlexArray(...){T})`
+
   Fixed bounds and sizes can also be obtained from the type"
 
   `lbnd{T,n}(::Type{FlexArray(...){T}}, ::Val{n})`
@@ -123,6 +142,12 @@ When an array is allocated, the flexible bounds have to be listed in order. (Thi
 
   `size{T,n}(::Type{FlexArray(...){T}}, ::Val{n})`
 
+  `lbnd{T}(::Type{FlexArray(...){T}})`
+
+  `ubnd{T}(::Type{FlexArray(...){T}})`
+
+  `size{T}(::Type{FlexArray(...){T}})`
+
   Example:
 
   `lbnd(myarray, 3)`
@@ -130,6 +155,12 @@ When an array is allocated, the flexible bounds have to be listed in order. (Thi
   `ubnd(myarray, Val{1})`
 
   `size(myarray, 2)`
+
+  `lbnd(myarray)`
+
+  `ubnd(myarray)`
+
+  `size(myarray)`
 
 - Access array elements:
 
