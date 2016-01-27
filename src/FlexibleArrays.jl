@@ -1,5 +1,7 @@
 module FlexibleArrays
 
+# using Base.Cartesian
+
 export AbstractFlexArray
 abstract AbstractFlexArray{T,N} <: DenseArray{T,N}
 
@@ -21,6 +23,9 @@ size{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = size(T, Val{n})
 @generated function lbnd{T,N}(arr::AbstractFlexArray{T,N})
     Expr(:tuple, [:(lbnd(arr, Val{$n})) for n in 1:N]...)
 end
+# function lbnd{T,N}(arr::AbstractFlexArray{T,N})
+#     @ntuple N n->lbnd(arr, Val{n})
+# end
 @generated function ubnd{T,N}(arr::AbstractFlexArray{T,N})
     Expr(:tuple, [:(ubnd(arr, Val{$n})) for n in 1:N]...)
 end
@@ -56,6 +61,15 @@ import Base: show
     end
     stmt
 end
+# function show{T,N}(io::IO, arr::AbstractFlexArray{T,N})
+#     bnds(n) = lbnd(arr,n):ubnd(arr,n)
+#     pre(n) = print(io, "[")
+#     post(n) = print(io, "[")
+#     body(n) =
+#     @nloops N i bnds pre post begin
+#         print(io, (@nref N arr i), " ")
+#     end
+# end
 
 
 
