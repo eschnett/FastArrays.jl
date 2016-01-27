@@ -139,3 +139,46 @@ end
 
 Arr3 = FlexArray(0:3, 0, 0){Int}
 arr3 = Arr3(:,4,5)
+
+# Real-world example
+
+typealias Box FlexArray(0:9, 0){Int}
+
+function init()
+    b = Box(:, 19)
+    @inbounds for j in 0:ubnd(b,2)
+        @simd for i in 0:9
+            b[i,j] = 9-i
+        end
+    end
+    b
+end
+
+import Base: show
+function show(io::IO, b::Box)
+    print(io, "[")
+    for j in lbnd(b,2):ubnd(b,2)
+        print(io, "[:,$j]=[")
+        for i in lbnd(b,1):ubnd(b,1)
+            print(io, b[i,j])
+            i != ubnd(b,1) && print(io, ",")
+        end
+        print(io, "]")
+        j != ubnd(b,2) && println(io, ",")
+    end
+    println(io, "]")
+end
+
+function process(oldb::Box)
+    b = Box(:, ubnd(oldb,2))
+    @inbounds for j in 0:ubnd(b,2)
+        @simd for i in 0:9
+            b[i,j] = oldb[oldb[i,j],j]
+        end
+    end
+    b
+end
+
+b = init()
+b2 = process(b)
+@test [b2[i,12] for i in 0:9] == collect(0:9)
