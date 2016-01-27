@@ -1,5 +1,47 @@
 module FlexibleArrays
 
+export AbstractFlexArray
+abstract AbstractFlexArray{T,N} <: DenseArray{T,N}
+
+# eltype, ndims are provided by DenseArray
+
+export lbnd, ubnd
+import Base: size
+
+lbnd(arr::AbstractFlexArray, n::Int) = lbnd(arr, Val{n})
+ubnd(arr::AbstractFlexArray, n::Int) = ubnd(arr, Val{n})
+size(arr::AbstractFlexArray, n::Int) = size(arr, Val{n})
+
+lbnd{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = lbnd(T, Val{n})
+ubnd{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = ubnd(T, Val{n})
+size{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = size(T, Val{n})
+
+# Note: Use ntuple instead of generated functions once the closure in ntuple is
+# efficient
+@generated function lbnd{T,N}(arr::AbstractFlexArray{T,N})
+    Expr(:tuple, [:(lbnd(arr, Val{$n})) for n in 1:N]...)
+end
+@generated function ubnd{T,N}(arr::AbstractFlexArray{T,N})
+    Expr(:tuple, [:(ubnd(arr, Val{$n})) for n in 1:N]...)
+end
+@generated function size{T,N}(arr::AbstractFlexArray{T,N})
+    Expr(:tuple, [:(size(arr, Val{$n})) for n in 1:N]...)
+end
+
+@generated function lbnd{T <: AbstractFlexArray}(::Type{T})
+    Expr(:tuple, [:(lbnd(T, Val{$n})) for n in 1:ndims(T)]...)
+end
+@generated function ubnd{T <: AbstractFlexArray}(::Type{T})
+    Expr(:tuple, [:(ubnd(T, Val{$n})) for n in 1:ndims(T)]...)
+end
+@generated function size{T <: AbstractFlexArray}(::Type{T})
+    Expr(:tuple, [:(size(T, Val{$n})) for n in 1:ndims(T)]...)
+end
+
+
+
+import Base: convert, getindex, length, setindex!
+
 typealias DimSpec NTuple{2, Nullable{Int}}
 
 have_lb(ds::DimSpec) = !isnull(ds[1])
@@ -93,16 +135,20 @@ export FlexArray
         push!(block, :(offset::Int))
     end
     # TODO: use a more low-level array representation
-    push!(block, :(arr::Vector{T}))
+    push!(block, :(data::Vector{T}))
 
     # Constructor
     funcargs = []
     for n in 1:rank
         if !have_lb(dimspecs[n])
             push!(funcargs, :($(symbol(:lbnd,n))::Int))
+        else
+            push!(funcargs, :(::Void))
         end
         if !have_ub(dimspecs[n])
             push!(funcargs, :($(symbol(:ubnd,n))::Int))
+        else
+            push!(funcargs, :(::Void))
         end
     end
 
@@ -157,12 +203,62 @@ export FlexArray
     push!(block,
         :($(Expr(:call, typename, funcargs...)) = $(Expr(:block, body...))))
 
-    push!(decls, Expr(:type, false, :($typename{T}), Expr(:block, block...)))
+    push!(decls,
+        Expr(:type, false,
+            Expr(:<:, :($typename{T}), :(AbstractFlexArray{T,$rank})),
+            Expr(:block, block...)))
 
-    push!(decls, :(Base.eltype{T}(::Type{$typename{T}}) = T))
-    push!(decls, :(Base.eltype{T}(::$typename{T}) = T))
+    # Convenience constructor with a saner syntax
 
-    push!(decls, :(export lbnd))
+    funcargs = []
+    for n in 1:rank
+        if have_lb(dimspecs[n])
+            if have_ub(dimspecs[n])
+                push!(funcargs, :(::Colon))
+            else
+                push!(funcargs, :($(symbol(:ubnd,n))::Int))
+            end
+        else
+            if have_ub(dimspecs[n])
+                # no good syntax for this
+            else
+                push!(funcargs, :($(symbol(:bnds,n))::UnitRange{Int}))
+            end
+        end
+    end
+
+    body = []
+    push!(body,
+        let
+            args = []
+            for n in 1:rank
+                if have_lb(dimspecs[n])
+                    if have_ub(dimspecs[n])
+                        push!(args, :nothing)
+                        push!(args, :nothing)
+                    else
+                        push!(args, :nothing)
+                        push!(args, :($(symbol(:ubnd,n))))
+                    end
+                else
+                    if have_ub(dimspecs[n])
+                        push!(args, 1)   # see above
+                        push!(args, :nothing)
+                    else
+                        push!(args, :($(symbol(:bnds,n)).start))
+                        push!(args, :($(symbol(:bnds,n)).stop))
+                    end
+                end
+            end
+            Expr(:call, :($typename{T}), args...)
+        end)
+
+    push!(decls,
+        :($(Expr(:call, :(convert{T}), :(::Type{$typename{T}}), funcargs...)) =
+            $(Expr(:block, body...))))
+
+    # Lower/upper bounds, size, length
+
     for n in 1:rank
         if have_lb(dimspecs[n])
             push!(decls, :(lbnd{T}(::$typename{T}, ::Type{Val{$n}}) =
@@ -174,9 +270,6 @@ export FlexArray
                 arr.$(symbol(:lbnd,n))))
         end
     end
-    push!(decls, :(lbnd{T}(arr::$typename{T}, n::Int) = lbnd(arr, Val{n})))
-    push!(decls, :(lbnd{T}(arr::Type{$typename{T}}, n::Int) =
-        lbnd($typename{T}, Val{n})))
 
     push!(decls, :(export ubnd))
     for n in 1:rank
@@ -190,29 +283,24 @@ export FlexArray
                 arr.$(symbol(:ubnd,n))))
         end
     end
-    push!(decls, :(ubnd{T}(arr::$typename{T}, n::Int) = ubnd(arr, Val{n})))
-    push!(decls, :(ubnd{T}(arr::Type{$typename{T}}, n::Int) =
-        ubnd($typename{T}, Val{n})))
 
     for n in 1:rank
-        push!(decls, :(Base.size{T}(arr::$typename{T}, ::Type{Val{$n}}) =
+        push!(decls, :(size{T}(arr::$typename{T}, ::Type{Val{$n}}) =
             ubnd(arr, Val{$n}) - lbnd(arr, Val{$n}) + 1))
         if have_lb(dimspecs[n]) && have_ub(dimspecs[n])
-            push!(decls, :(Base.size{T}(::Type{$typename{T}}, ::Type{Val{$n}}) =
+            push!(decls, :(size{T}(::Type{$typename{T}}, ::Type{Val{$n}}) =
                 ubnd($typename{T}, Val{$n}) - lbnd($typename{T}, Val{$n}) + 1))
         end
     end
-    push!(decls, :(Base.size{T}(arr::$typename{T}, n::Int) =
-        size(arr, Val{n})))
-    push!(decls, :(Base.size{T}(arr::Type{$typename{T}}, n::Int) =
-        size($typename{T}, Val{n})))
 
     if have_all_bnd
-        push!(decls, :(Base.length{T}(::$typename{T}) = $size))
-        push!(decls, :(Base.length{T}(::Type{$typename{T}}) = $size))
+        push!(decls, :(length{T}(::$typename{T}) = $size))
+        push!(decls, :(length{T}(::Type{$typename{T}}) = $size))
     else
-        push!(decls, :(Base.length{T}(arr::$typename{T}) = arr.size))
+        push!(decls, :(length{T}(arr::$typename{T}) = arr.size))
     end
+
+    # Array indexing
 
     push!(decls,
         let
@@ -240,8 +328,8 @@ export FlexArray
                     push!(args, :(arr.$(symbol(:str,n)) * $(symbol(:ind,n))))
                 end
             end
-            push!(body, :(arr.arr[$(Expr(:call, :+, 1, args...))]))
-            :($(Expr(:call, :(Base.getindex{T}),
+            push!(body, :(arr.data[$(Expr(:call, :+, 1, args...))]))
+            :($(Expr(:call, :(getindex{T}),
                 :(arr::$typename{T}), funcargs...)) =
                 $(Expr(:block, body...)))
         end)
@@ -272,8 +360,8 @@ export FlexArray
                     push!(args, :(arr.$(symbol(:str,n)) * $(symbol(:ind,n))))
                 end
             end
-            push!(body, :(arr.arr[$(Expr(:call, :+, 1, args...))] = val))
-            :($(Expr(:call, :(Base.setindex!{T}),
+            push!(body, :(arr.data[$(Expr(:call, :+, 1, args...))] = val))
+            :($(Expr(:call, :(setindex!{T}),
                 :(arr::$typename{T}), :val, funcargs...)) =
                 $(Expr(:block, body...)))
         end)
@@ -283,6 +371,7 @@ export FlexArray
     typename
 end
 
+# Convenience wrapper with a saner syntax
 @inline function FlexArray(dimspecs...)
     @assert isa(dimspecs, Tuple)
     dimspectuple = ntuple(length(dimspecs)) do n
