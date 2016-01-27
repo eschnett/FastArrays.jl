@@ -20,9 +20,11 @@ size{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = size(T, Val{n})
 
 # Note: Use ntuple instead of generated functions once the closure in ntuple is
 # efficient
+# lbnd{T,N}(arr::AbstractFlexArray{T,N}) = ntuple(n->lbnd(arr, Val{n}), N)
 @generated function lbnd{T,N}(arr::AbstractFlexArray{T,N})
     Expr(:tuple, [:(lbnd(arr, Val{$n})) for n in 1:N]...)
 end
+# The Base.Cartesian macros expect literals, not parameters
 # function lbnd{T,N}(arr::AbstractFlexArray{T,N})
 #     @ntuple N n->lbnd(arr, Val{n})
 # end
