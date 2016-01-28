@@ -115,15 +115,31 @@ typealias BndSpec NTuple{2, Bool}
     # Type declaration
 
     # typename = gensym(:FlexArray)
-    typename = symbol(prod(
-        let
-            names = ["FlexArrayImpl"]
-            for n in 1:rank
-                push!(names, string(Int(fixed_lbnd[n])))
-                push!(names, string(Int(fixed_ubnd[n])))
-            end
-            names
-        end))
+    typename = let
+        names = ["FlexArrayImpl"]
+        for n in 1:rank
+            push!(names, string(Int(fixed_lbnd[n])))
+            push!(names, string(Int(fixed_ubnd[n])))
+        end
+        symbol(names...)
+    end
+    @show T
+    @show typename
+
+    # Sometimes, generated functions are generated multiple times. (Why?) Catch
+    # this early to avoid defining the implementation type multiple times.
+    type_exists = true
+    try
+        eval(typename)
+    catch e
+        if isa(e, UndefVarError)
+            type_exists = false
+        else
+            rethrow(e)
+        end
+    end
+    @show type_exists
+    type_exists && return typename
 
     typeparams = []
     for n in 1:rank
@@ -133,9 +149,6 @@ typealias BndSpec NTuple{2, Bool}
         # push!(typeparams, fixed_ubnd[n] ? ubnd[n] : symbol(ubnd[n], "_dummy"))
     end
     push!(typeparams, :T)
-    @show T
-    @show typename
-    @show typeparams
 
     # Type name with parameters
     typenameparams = Expr(:curly, typename, typeparams...)
