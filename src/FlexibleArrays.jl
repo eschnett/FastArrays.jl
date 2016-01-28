@@ -137,7 +137,7 @@ typealias BndSpec NTuple{2, Bool}
     # Type name with parameters
     typenameparams = Expr(:curly, typename, typeparams...)
 
-    push!(decls, Expr(:type, false,
+    push!(decls, Expr(:type, true #=mutable=#,
         Expr(:<:, typenameparams, :(AbstractFlexArray{T,$rank})),
         let
             body = []
@@ -286,15 +286,19 @@ typealias BndSpec NTuple{2, Bool}
             push!(decls, Expr(:(=),
                 Expr(:call, Expr(:curly, :stride, typeparams...),
                     :(::$typenameparams), :(::Type{Val{$n}})),
-                Expr(:call, :*, 1,
-                    [:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
-                        for m in 1:(n-1)]...)))
+                Expr(:block,
+                    Expr(:meta, :inline),
+                    Expr(:call, :*, 1,
+                        [:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
+                            for m in 1:(n-1)]...))))
             push!(decls, Expr(:(=),
                 Expr(:call, Expr(:curly, :stride, typeparams...),
                     :(::Type{$typenameparams}), :(::Type{Val{$n}})),
-                Expr(:call, :*, 1,
-                    [:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
-                        for m in 1:(n-1)]...)))
+                Expr(:block,
+                    Expr(:meta, :inline),
+                    Expr(:call, :*, 1,
+                        [:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
+                            for m in 1:(n-1)]...))))
         else
             push!(decls, Expr(:(=),
                 Expr(:call, Expr(:curly, :stride, typeparams...),
@@ -307,13 +311,19 @@ typealias BndSpec NTuple{2, Bool}
         push!(decls, Expr(:(=),
             Expr(:call, Expr(:curly, :length, typeparams...),
                 :(::$typenameparams)),
-            Expr(:call, :*, 1,
-                [:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1)) for n in 1:rank]...)))
+            Expr(:block,
+                Expr(:meta, :inline),
+                Expr(:call, :*, 1,
+                    [:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
+                        for n in 1:rank]...))))
         push!(decls, Expr(:(=),
             Expr(:call, Expr(:curly, :length, typeparams...),
                 :(::Type{$typenameparams})),
-            Expr(:call, :*, 1,
-                [:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1)) for n in 1:rank]...)))
+            Expr(:block,
+                Expr(:meta, :inline),
+                Expr(:call, :*, 1,
+                    [:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
+                        for n in 1:rank]...))))
     else
         push!(decls, Expr(:(=),
             Expr(:call, Expr(:curly, :length, typeparams...),
@@ -326,6 +336,7 @@ typealias BndSpec NTuple{2, Bool}
             Expr(:call, Expr(:curly, :offset, typeparams...),
                 :(::$typenameparams)),
             Expr(:block,
+                Expr(:meta, :inline),
                 [Expr(:(=), stride[n],
                     n == 1 ?
                     1 :
@@ -337,6 +348,7 @@ typealias BndSpec NTuple{2, Bool}
             Expr(:call, Expr(:curly, :offset, typeparams...),
                 :(::Type{$typenameparams})),
             Expr(:block,
+                Expr(:meta, :inline),
                 [Expr(:(=), stride[n],
                     n == 1 ?
                     1 :
@@ -369,17 +381,25 @@ typealias BndSpec NTuple{2, Bool}
             Expr(:curly, :linearindex, typeparams...),
             :(arr::$typenameparams),
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        Expr(:call, :+,
-            [:($(symbol(:ind,n)) * stride(arr, Val{$n})) for n in 1:rank]...,
-            :(- offset(arr)))))
+        Expr(:block,
+            Expr(:meta, :inline),
+            Expr(:call, :+,
+                [:($(symbol(:ind,n)) * stride(arr, Val{$n}))
+                    for n in 1:rank]...,
+                :(- offset(arr))))))
 
     push!(decls, Expr(:(=),
         Expr(:call,
             Expr(:curly, :getindex, typeparams...),
             :(arr::$typenameparams),
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        :(arr.data[$(Expr(:call, :linearindex, :arr,
-            [symbol(:ind,n) for n in 1:rank]...)) + 1])))
+        Expr(:block,
+            Expr(:meta, :inline),
+            Expr(:boundscheck, false),
+            :(val = arr.data[$(Expr(:call, :linearindex, :arr,
+                [symbol(:ind,n) for n in 1:rank]...)) + 1]),
+            Expr(:boundscheck, :pop),
+            :val)))
 
     push!(decls, Expr(:(=),
         Expr(:call,
@@ -387,8 +407,10 @@ typealias BndSpec NTuple{2, Bool}
             :(arr::$typenameparams),
             :val,
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        :(arr.data[$(Expr(:call, :linearindex, :arr,
-            [symbol(:ind,n) for n in 1:rank]...)) + 1] = val)))
+        Expr(:block,
+            Expr(:meta, :inline),
+            :(arr.data[$(Expr(:call, :linearindex, :arr,
+                [symbol(:ind,n) for n in 1:rank]...)) + 1] = val))))
 
     eval(Expr(:block, decls...))
 
