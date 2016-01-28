@@ -53,17 +53,19 @@ I designed FlexibleArrays for the two reasons above -- I needed to model quantum
 
 Each array dimension has a lower and an upper bound. Both can either be fixed or flexible. Fixed bounds are the same for all objects of this type, flexible bounds have to be chosen when the array is allocated. Julia's `Array` types correspond to `FlexArray` types where all lower bounds are fixed to `1`, and all upper bounds are flexible.
 
-Internally, the fixed bounds are represented as a tuple of nullable integers: `DimSpec = NTuple{2, Nullable{Int}}`.
+Internally, the fixed bounds are represented as a tuple of either nothing or integers: `DimSpec = NTuple{2, Union{Void, Int}}`.
 
 For each dimension, the fixed bounds are set via:
-- A range `lb:ub` defining both bounds
-- An integer `lb` defining the lower bound
+- A range `lb:ub` to define both bounds
+- An integer `lb` to define the lower bound, leaving the upper bound flexible
 - A colon `:` to indicate that both lower and upper bounds are flexible
+Instead of the above, you can also define the fixed bounds via a tuple of type `DimSpec`.
 
 When an array is allocated, the flexible bounds are set conversely:
 - A colon `:` indicates no flexible bounds (if both bounds are fixed)
 - An integer `ub` defines the upper bound (if the lower bound is fixed)
 - A range `lb:ub` defines both lower and upper bounds
+- A one-element integer tuple `(lb,)` defines the lower bound (if the upper bound is fixed)
 
 Each flexible array type is subtype of `AbstractFlexArray{T,N}`, where `T` is the element type and `N` is the rank. This abstract is a subtype of `DenseArray{T,N}`.
 
@@ -151,7 +153,7 @@ Each flexible array type is subtype of `AbstractFlexArray{T,N}`, where `T` is th
   size{T}(arr::FlexArray(...){T})
   ```
 
-  Fixed bounds and sizes can also be obtained from the type"
+  Fixed bounds and sizes can also be obtained from the type:
 
   ```Julia
   lbnd{T,n}(::Type{FlexArray(...){T}}, ::Val{n})
