@@ -133,6 +133,9 @@ typealias BndSpec NTuple{2, Bool}
         # push!(typeparams, fixed_ubnd[n] ? ubnd[n] : symbol(ubnd[n], "_dummy"))
     end
     push!(typeparams, :T)
+    @show T
+    @show typename
+    @show typeparams
 
     # Type name with parameters
     typenameparams = Expr(:curly, typename, typeparams...)
