@@ -123,11 +123,10 @@ typealias BndSpec NTuple{2, Bool}
         end
         symbol(names...)
     end
-    @show T
-    @show typename
 
-    # Sometimes, generated functions are generated multiple times. (Why?) Catch
-    # this early to avoid defining the implementation type multiple times.
+    # Sometimes, e.g. when running tests with "coverage=true", generated
+    # functions are generated multiple times. Catch this early to avoid defining
+    # the implementation type multiple times.
     type_exists = true
     try
         eval(typename)
@@ -138,7 +137,6 @@ typealias BndSpec NTuple{2, Bool}
             rethrow(e)
         end
     end
-    @show type_exists
     type_exists && return typename
 
     typeparams = []
