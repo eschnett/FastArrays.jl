@@ -17,8 +17,12 @@ FlexArray(:,1:10)
 FlexArray(:,1)
 FlexArray(:,:)
 
+FlexArray(){Int}(nothing)
 FlexArray(){Int}()
 
+FlexArray(1:10){Int}(nothing)
+FlexArray(1){Int}(nothing, 10)
+FlexArray(:){Int}(nothing, 1, 10)
 FlexArray(1:10){Int}(:)
 FlexArray(1){Int}(10)
 FlexArray(:){Int}(1:10)
@@ -65,7 +69,7 @@ Arr1_fix = FlexArray(1:10){Float64}
 @test ubnd(Arr1_fix, 1) === 10
 @test size(Arr1_fix, 1) === 10
 arr1_fix = Arr1_fix(:)
-arr1_fix_b = Arr1_fix(nothing, nothing)
+arr1_fix_b = Arr1_fix(nothing )
 @test eltype(arr1_fix) === Float64
 @test length(arr1_fix) === 10
 @test lbnd(arr1_fix, 1) === 1
@@ -102,33 +106,30 @@ arr1_gen = Arr1_gen(1:10)
 
 # 2D
 
-ds(::Colon) = Nullable{Int}()
-ds(i::Integer) = Nullable{Int}(i)
-ds(t::Tuple) = map(ds, t)
+na = nothing
+for bnds1 in [(1,10), (na,10), (1,na), (na,na)],
+    bnds2 in [(0,11), (na,11), (0,na), (na,na)]
 
-for bnds1 in [(1,10), (:,10), (1,:), (:,:)],
-    bnds2 in [(0,11), (:,11), (0,:), (:,:)]
-
-    ds1 = ds(bnds1)
-    ds2 = ds(bnds2)
-
-    Arr2 = FlexArray(Val{(ds1,ds2)}){Float64}
+    Arr2 = FlexArray(bnds1, bnds2){Float64}
     @test eltype(Arr2) === Float64
-    if bnds1[1] !== (:) && bnds1[2] !== (:) && bnds2[1] !== (:) &&
-            bnds2[2] !== (:)
+    if bnds1[1]!==na && bnds1[2]!==na && bnds2[1]!==na && bnds2[2]!==na
         @test length(Arr2) === 120
     end
-    bnds1[1] !== (:) && @test lbnd(Arr2, 1) === 1
-    bnds2[1] !== (:) && @test lbnd(Arr2, 2) === 0
-    bnds1[2] !== (:) && @test ubnd(Arr2, 1) === 10
-    bnds2[2] !== (:) && @test ubnd(Arr2, 2) === 11
-    bnds1[1] !== (:) && bnds1[2] !== (:) && @test size(Arr2, 1) === 10
-    bnds2[1] !== (:) && bnds2[2] !== (:) && @test size(Arr2, 2) === 12
+    bnds1[1]!==na && @test lbnd(Arr2, 1) === 1
+    bnds2[1]!==na && @test lbnd(Arr2, 2) === 0
+    bnds1[2]!==na && @test ubnd(Arr2, 1) === 10
+    bnds2[2]!==na && @test ubnd(Arr2, 2) === 11
+    bnds1[1]!==na && bnds1[2]!==na && @test size(Arr2, 1) === 10
+    bnds2[1]!==na && bnds2[2]!==na && @test size(Arr2, 2) === 12
     sizes = []
-    push!(sizes, bnds1[1] === (:) ? 1 : nothing)
-    push!(sizes, bnds1[2] === (:) ? 10 : nothing)
-    push!(sizes, bnds2[1] === (:) ? 0 : nothing)
-    push!(sizes, bnds2[2] === (:) ? 11 : nothing)
+    bnds1[1]===na && bnds1[2]===na && push!(sizes, 1:10)
+    bnds1[1]===na && bnds1[2]!==na && push!(sizes, (1,))
+    bnds1[1]!==na && bnds1[2]===na && push!(sizes, 10)
+    bnds1[1]!==na && bnds1[2]!==na && push!(sizes, :)
+    bnds2[1]===na && bnds2[2]===na && push!(sizes, 0:11)
+    bnds2[1]===na && bnds2[2]!==na && push!(sizes, (0,))
+    bnds2[1]!==na && bnds2[2]===na && push!(sizes, 11)
+    bnds2[1]!==na && bnds2[2]!==na && push!(sizes, :)
     arr2 = Arr2(sizes...)
     @test eltype(arr2) === Float64
     @test length(arr2) === 120
