@@ -28,7 +28,7 @@ a3 = Arr3d_lb0{Float64}(9, 9, 9)
 
 # A generic array, all bounds determined at creation time
 typealias Arr4d_generic FlexArray(:, :, :, :)
-a4 = Arr4d_generic(1:10, 0:10, -1:10, 15:15)
+a4 = Arr4d_generic{Float64}(1:10, 0:10, -1:10, 15:15)
 
 # These can be mixed: A (2x10) array
 FlexArray(0:1, 1){Float64}(:, 10)
@@ -37,7 +37,7 @@ FlexArray(0:1, 1){Float64}(:, 10)
 FlexArray(4:13, 10:9)
 FlexArray(:){Int}(5:0)
 
-# The trivial 0d array, always holding one scalar value:
+# The trivial 0d array type, always holding one scalar value:
 FlexArray(){Int}
 ```
 
