@@ -145,7 +145,31 @@ end
 Arr3 = FlexArray(0:3, 0, 0){Int}
 arr3 = Arr3(:,4,5)
 
-# Real-world example
+# Test the examples given in the README
+
+# A (10x10) fixed-size array
+typealias Arr2d_10x10 FlexArray(1:10, 1:10)
+a2 = Arr2d_10x10{Float64}(:,:)
+
+# A 3d array with lower index bounds 0
+typealias Arr3d_lb0 FlexArray(0, 0, 0)
+a3 = Arr3d_lb0{Float64}(9, 9, 9)
+
+# A generic array, all bounds determined at creation time
+typealias Arr4d_generic FlexArray(:, :, :, :)
+a4 = Arr4d_generic{Float64}(1:10, 0:10, -1:10, 15:15)
+
+# These can be mixed: A (2x10) array
+FlexArray(0:1, 1){Float64}(:, 10)
+
+# Arrays can also be empty:
+FlexArray(4:13, 10:9)
+FlexArray(:){Int}(5:0)
+
+# The trivial 0d array, always holding one scalar value:
+FlexArray(){Int}
+
+# A real-world example
 
 typealias Box FlexArray(0:9, 0){Int}
 
