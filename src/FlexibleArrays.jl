@@ -152,7 +152,7 @@ typealias BndSpec NTuple{2, Bool}
     # Type name with parameters
     typenameparams = Expr(:curly, typename, typeparams...)
 
-    push!(decls, Expr(:type, true #=mutable=#,
+    push!(decls, Expr(:type, false #=immutable=#,
         Expr(:<:, typenameparams, :(AbstractFlexArray{T,$rank})),
         let
             body = []
