@@ -88,7 +88,6 @@ export linearindex
 typealias BndSpec NTuple{2, Bool}
 
 @generated function genFlexArray{T}(::Type{Val{T}})
-    @show T
     @assert isa(T, Tuple)
     N = length(T)
     @assert isa(T, NTuple{N, BndSpec})
