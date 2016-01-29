@@ -80,8 +80,8 @@ end
 
 
 
-import Base: convert, getindex, length, setindex!
-export checkindices, linearindex
+import Base: call, checkbounds, getindex, length, setindex!
+export linearindex
 
 
 
@@ -212,10 +212,10 @@ typealias BndSpec NTuple{2, Bool}
             Expr(:block, body...)
         end))
 
-    # Constructor
+    # Outer constructor
 
     push!(decls, Expr(:(=),
-        Expr(:call, Expr(:curly, :convert, typeparams...),
+        Expr(:call, Expr(:curly, :call, typeparams...),
             :(::Type{$typenameparams}),
             let
                 args = []
@@ -384,7 +384,7 @@ typealias BndSpec NTuple{2, Bool}
     # lists are handled efficiently
     push!(decls, Expr(:(=),
         Expr(:call,
-            Expr(:curly, :checkindices, typeparams...),
+            Expr(:curly, :checkbounds, typeparams...),
             :(arr::$typenameparams),
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
         Expr(:call, :&,
