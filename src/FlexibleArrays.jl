@@ -457,34 +457,35 @@ end
 
 
 export FlexArray
-@inline function FlexArray(dimspecs...)
+@generated function FlexArray(dimspecs...)
     @assert isa(dimspecs, Tuple)
     rank = length(dimspecs)
     dims = []
     for n in 1:rank
         dimspec = dimspecs[n]
-        if isa(dimspec, Colon) || isa(dimspec, Tuple{Void, Void})
-            # push!(dims, Void)
-            # push!(dims, Void)
-        elseif isa(dimspec, Integer)
-            push!(dims, Int(dimspec))
-            # push!(dims, Void)
-        elseif isa(dimspec, Tuple{Integer, Void})
-            push!(dims, Int(dimspec[1]))
-            # push!(dims, Void)
-        elseif isa(dimspec, UnitRange)
-            push!(dims, Int(dimspec.start))
-            push!(dims, Int(dimspec.stop))
-        elseif isa(dimspec, Tuple{Integer, Integer})
-            push!(dims, Int(dimspec[1]))
-            push!(dims, Int(dimspec[2]))
-        elseif isa(dimspec, Tuple{Void, Integer})
-            push!(dims, Int(dimspec[2]))
+        if dimspec <: Colon || dimspec <: Tuple{Void, Void}
+            # do nothing
+        elseif dimspec <: Integer
+            push!(dims, :(Int(dimspecs[$n])))
+        elseif dimspec <: Tuple{Integer, Void}
+            push!(dims, :(Int(dimspecs[$n][1])))
+        elseif dimspec <: UnitRange
+            push!(dims, :(Int(dimspecs[$n].start)))
+            push!(dims, :(Int(dimspecs[$n].stop)))
+        elseif dimspec <: Tuple{Integer, Integer}
+            push!(dims, :(Int(dimspecs[$n][1])))
+            push!(dims, :(Int(dimspecs[$n][2])))
+        elseif dimspec <: Tuple{Void, Integer}
+            push!(dims, :(Int(dimspecs[$n][2])))
         else
             @assert false
         end
     end
-    genFlexArray(dimspecs...){dims...}
+    quote
+        $(Expr(:meta, :inline))
+        arrtype = genFlexArray(dimspecs...)
+        $(Expr(:curly, :arrtype, dims...))
+    end
 end
 
 end
