@@ -176,9 +176,16 @@ end
 @test a3[0,0,0] == 1
 @test a3[1,2,3] == 1
 @test a3[9,9,9] == 1
-s = 0
+s = zero(eltype(a3))
 for k in 0:9, j in 0:9, i in 0:9
     s += a3[i,j,k]
+end
+@test s == 1000
+
+# Element-wise iteration
+s = zero(eltype(a3))
+for a in a3
+    s += a
 end
 @test s == 1000
 

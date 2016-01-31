@@ -8,7 +8,7 @@ abstract AbstractFlexArray{T,N} <: DenseArray{T,N}
 # eltype, ndims are provided by DenseArray
 
 export lbnd, ubnd
-import Base: eachindex, size
+import Base: done, eachindex, next, size, start
 
 size{n}(arr::AbstractFlexArray, ::Type{Val{n}}) =
     max(0, ubnd(arr, Val{n}) - lbnd(arr, Val{n}) + 1)
@@ -52,6 +52,10 @@ end
 
 eachindex(arr::AbstractFlexArray) =
     CartesianRange(CartesianIndex(lbnd(arr)), CartesianIndex(ubnd(arr)))
+
+start(arr::AbstractFlexArray) = start(eachindex(arr))
+done(arr::AbstractFlexArray, i) = done(eachindex(arr), i)
+next(arr::AbstractFlexArray, i) = arr[i], next(eachindex(arr), i)[2]
 
 
 
