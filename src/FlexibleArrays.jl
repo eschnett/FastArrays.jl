@@ -8,7 +8,7 @@ abstract AbstractFlexArray{T,N} <: DenseArray{T,N}
 # eltype, ndims are provided by DenseArray
 
 export lbnd, ubnd
-import Base: size
+import Base: eachindex, size
 
 size{n}(arr::AbstractFlexArray, ::Type{Val{n}}) =
     max(0, ubnd(arr, Val{n}) - lbnd(arr, Val{n}) + 1)
@@ -49,6 +49,9 @@ end
 @generated function size{T <: AbstractFlexArray}(::Type{T})
     Expr(:tuple, [:(size(T, Val{$n})) for n in 1:ndims(T)]...)
 end
+
+eachindex(arr::AbstractFlexArray) =
+    CartesianRange(CartesianIndex(lbnd(arr)), CartesianIndex(ubnd(arr)))
 
 
 
@@ -425,6 +428,15 @@ typealias BndSpec NTuple{2, Bool}
             Expr(:meta, :inline),
             :(arr.data[$(Expr(:call, :linearindex, :arr,
                 [symbol(:ind,n) for n in 1:rank]...)) + 1] = val))))
+
+    push!(decls, :(
+        getindex(arr::$typenameparams, inds::CartesianIndex{$rank}) =
+            $(Expr(:call, :getindex, :arr, [:(inds[$i]) for i in 1:rank]...))))
+
+    push!(decls, :(
+        setindex!(arr::$typenameparams, val, inds::CartesianIndex{$rank}) =
+            $(Expr(:call, :setindex!, :arr, :val,
+                [:(inds[$i]) for i in 1:rank]...))))
 
     eval(Expr(:block, decls...))
 

@@ -169,6 +169,19 @@ FlexArray(:){Int}(5:0)
 # The trivial 0d array, always holding one scalar value:
 FlexArray(){Int}
 
+# Cartesian iteration
+for i in eachindex(a3)
+    a3[i] = 1
+end
+@test a3[0,0,0] == 1
+@test a3[1,2,3] == 1
+@test a3[9,9,9] == 1
+s = 0
+for k in 0:9, j in 0:9, i in 0:9
+    s += a3[i,j,k]
+end
+@test s == 1000
+
 # A real-world example
 
 typealias Box FlexArray(0:9, 0){Int}
