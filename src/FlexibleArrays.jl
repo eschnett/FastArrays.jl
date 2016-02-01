@@ -88,7 +88,7 @@ end
 # Base.print_matrix assumes that each dimension has a range 1:size. Obviously,
 # this is not going to work, so we replace this output function.
 # Julia v0.4
-function Base.print_matrix(io::IO, X::AbstractVecOrMat,
+function Base.print_matrix(io::IO, X::AbstractFlexArray,
                       sz::Tuple{Integer, Integer} = (s = tty_size(); (s[1]-4, s[2])),
                       pre::AbstractString = " ",
                       sep::AbstractString = "  ",
