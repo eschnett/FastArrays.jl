@@ -85,6 +85,32 @@ end
 #     end
 # end
 
+# Base.print_matrix assumes that each dimension has a range 1:size. Obviously,
+# this is not going to work, so we replace this output function.
+# Julia v0.4
+function Base.print_matrix(io::IO, X::AbstractVecOrMat,
+                      sz::Tuple{Integer, Integer} = (s = tty_size(); (s[1]-4, s[2])),
+                      pre::AbstractString = " ",
+                      sep::AbstractString = "  ",
+                      post::AbstractString = "",
+                      hdots::AbstractString = "  \u2026  ",
+                      vdots::AbstractString = "\u22ee",
+                      ddots::AbstractString = "  \u22f1  ",
+                      hmod::Integer = 5, vmod::Integer = 5)
+    print(io, X)
+end
+# Julia v0.5
+function Base.print_matrix(io::IO, X::AbstractFlexArray,
+                      pre::AbstractString = " ",  # pre-matrix string
+                      sep::AbstractString = "  ", # separator between elements
+                      post::AbstractString = "",  # post-matrix string
+                      hdots::AbstractString = "  \u2026  ",
+                      vdots::AbstractString = "\u22ee",
+                      ddots::AbstractString = "  \u22f1  ",
+                      hmod::Integer = 5, vmod::Integer = 5)
+    print(io, X)
+end
+
 
 
 import Base: call, checkbounds, getindex, length, setindex!
@@ -404,6 +430,8 @@ typealias BndSpec NTuple{2, Bool}
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
         Expr(:block,
             Expr(:meta, :inline),
+            :(@assert $(Expr(:call, :checkbounds, :arr,
+                [:($(symbol(:ind,n))::Int) for n in 1:rank]...))),
             Expr(:call, :+,
                 [:($(symbol(:ind,n)) * stride(arr, Val{$n}))
                     for n in 1:rank]...,
@@ -430,6 +458,7 @@ typealias BndSpec NTuple{2, Bool}
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
         Expr(:block,
             Expr(:meta, :inline),
+            Expr(:boundscheck, false),
             :(arr.data[$(Expr(:call, :linearindex, :arr,
                 [symbol(:ind,n) for n in 1:rank]...)) + 1] = val))))
 
