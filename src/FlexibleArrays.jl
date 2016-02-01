@@ -419,7 +419,7 @@ typealias BndSpec NTuple{2, Bool}
             Expr(:curly, :checkbounds, typeparams...),
             :(arr::$typenameparams),
             [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        Expr(:call, :&,
+        Expr(:call, :&, :true,
             [:(lbnd(arr, Val{$n}) <= $(symbol(:ind,n)) <= ubnd(arr, Val{$n}))
                 for n in 1:rank]...)))
 
