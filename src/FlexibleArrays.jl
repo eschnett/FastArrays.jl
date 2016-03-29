@@ -269,14 +269,19 @@ typealias BndSpec NTuple{2, Bool}
                 end
             end
         end
-        # push!(decls,
-        #       :(function $(Expr(:curly, :call, typeparams...))(::Type{$typenameparams}, $(args...))
-        #           $typenameparams(nothing, $(callargs...))
-        #         end))
-        push!(decls,
-              :(function (::Type{$typenameparams}){$(typeparams...)}($(args...))
-                  $typenameparams(nothing, $(callargs...))
-                end))
+        if VERSION < v"0.5.0-"
+            # Julia v0.4
+            push!(decls,
+                  :(function call{$(typeparams...)}(::Type{$typenameparams}, $(args...))
+                      $typenameparams(nothing, $(callargs...))
+                    end))
+        else
+            # Julia v0.5
+            push!(decls,
+                  :(function (::Type{$typenameparams}){$(typeparams...)}($(args...))
+                      $typenameparams(nothing, $(callargs...))
+                    end))
+        end
     end
 
     # Lower bound, upper bound, stride, length, offset
