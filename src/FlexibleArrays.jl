@@ -116,18 +116,38 @@ end
 
 
 
+@generated function mktuple{N,T}(::Type{Val{N}}, val::T)
+    :(tuple($([:val for i in 1:N]...)))
+end
+
+@generated function setindex{N,T,I}(t::NTuple{N,T}, val, ::Type{Val{I}})
+    :(tuple($([i==I ? :(T(val)) : :(t[$i]) for i in 1:N]...)))
+end
+
+@generated function setindex{N,T}(t::NTuple{N,T}, val, i::Int)
+    N==0 && return :(NTuple{N,T}())
+    quote
+        $([:(i==$j && return setindex(t, val, Val{$j})) for j in 1:N]...)
+        @assert false
+    end
+end
+setindex{N,T}(t::NTuple{N,T}, val, i::Integer) = setindex(t, val, Int(i))
+
+
+
 import Base: call, checkbounds, getindex, length, setindex!
-export linearindex
+export linearindex, setindex
 
 
 
 typealias BndSpec NTuple{2, Bool}
 
-@generated function genFlexArray{T}(::Type{Val{T}})
+@generated function genFlexArray{I,T}(::Type{Val{I}}, ::Type{Val{T}})
     @assert isa(T, Tuple)
     N = length(T)
     @assert isa(T, NTuple{N, BndSpec})
 
+    isimmutable = I
     rank = N
     bndspecs = T
 
@@ -142,6 +162,11 @@ typealias BndSpec NTuple{2, Bool}
     fixed_length = fixed_stride[rank+1]
     fixed_offset = rank == 0 || fixed_stride[rank] && fixed_lbnd[rank]
 
+    if isimmutable
+        @assert (all(fixed_lbnd) && all(fixed_ubnd) && all(fixed_stride) &&
+                 fixed_offset && fixed_length)
+    end
+
     lbnd = [symbol(:lbnd,n) for n in 1:rank]
     ubnd = [symbol(:ubnd,n) for n in 1:rank]
     stride = [symbol(:stride,n) for n in 1:rank+1]
@@ -152,7 +177,8 @@ typealias BndSpec NTuple{2, Bool}
 
     # typename = gensym(:FlexArray)
     typename = let
-        names = ["FlexArrayImpl"]
+        names = ["FlexArrayImpl_"]
+        push!(names, isimmutable ? "I" : "T")
         for n in 1:rank
             push!(names, string(Int(fixed_lbnd[n])))
             push!(names, string(Int(fixed_ubnd[n])))
@@ -170,6 +196,9 @@ typealias BndSpec NTuple{2, Bool}
         fixed_lbnd[n] && push!(typeparams, lbnd[n])
         fixed_ubnd[n] && push!(typeparams, ubnd[n])
     end
+    if isimmutable
+        push!(typeparams, :L)   # length
+    end
     push!(typeparams, :T)
 
     # Type name with parameters
@@ -184,8 +213,12 @@ typealias BndSpec NTuple{2, Bool}
         end
         !fixed_length && push!(body, :(length::Int))
         !fixed_offset && push!(body, :(offset::Int))
-        # TODO: use a more low-level array representation
-        push!(body, :(data::Vector{T}))
+        if isimmutable
+            push!(body, :(data::NTuple{L,T}))
+        else
+            # TODO: use a more low-level array representation
+            push!(body, :(data::Vector{T}))
+        end
         let
             args = []
             # Add a dummy Void argument to ensure that this
@@ -219,12 +252,22 @@ typealias BndSpec NTuple{2, Bool}
                 end
                 !fixed_length && push!(newargs, :length)
                 !fixed_offset && push!(newargs, :offset)
-                push!(newargs, :(Vector{T}(length)))
+                if isimmutable
+                    push!(newargs, :(mktuple(Val{L}, zero(T))))
+                else
+                    push!(newargs, :(Vector{T}(length)))
+                end
                 push!(stmts, :(new($(newargs...))))
             end
             push!(body,
                   :(function $typename($(args...))
                       $(stmts...)
+                    end))
+        end
+        if isimmutable
+            push!(body,
+                  :(function $typename(::Void, data::NTuple{L,T})
+                      new(data)
                     end))
         end
         push!(decls,
@@ -442,29 +485,51 @@ typealias BndSpec NTuple{2, Bool}
               val
             end))
 
-    push!(decls,
-          :(function setindex!{$(typeparams...)}(arr::$typenameparams,
-                                                 val,
-                                                 $([:($(symbol(:ind,n))::Int)
-                                                    for n in 1:rank]...))
-              $(Expr(:meta, :inline, :propagate_inbounds))
-              idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-              @inbounds arr.data[idx + 1] = val
-              val
-            end))
+    if isimmutable
+        push!(decls,
+              :(function setindex{$(typeparams...)}(arr::$typenameparams,
+                                                    val,
+                                                    $([:($(symbol(:ind,n))::Int)
+                                                       for n in 1:rank]...))
+                  $(Expr(:meta, :inline, :propagate_inbounds))
+                  idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
+                  $typenameparams(nothing, setindex(arr.data, val, idx + 1))
+                end))
+    else
+        push!(decls,
+              :(function setindex!{$(typeparams...)}(arr::$typenameparams,
+                                                     val,
+                                                     $([:($(symbol(:ind,n))::Int)
+                                                        for n in 1:rank]...))
+                  $(Expr(:meta, :inline, :propagate_inbounds))
+                  idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
+                  @inbounds arr.data[idx + 1] = val
+                  val
+                end))
+    end
 
     push!(decls,
-          :(function getindex(arr::$typenameparams, inds::CartesianIndex{$rank})
+          :(function getindex{$(typeparams...)}(arr::$typenameparams,
+                                                inds::CartesianIndex{$rank})
               $(Expr(:meta, :inline, :propagate_inbounds))
               getindex(arr, $([:(inds[$i]) for i in 1:rank]...))
             end))
 
-    push!(decls,
-          :(function setindex!(arr::$typenameparams, val,
-                               inds::CartesianIndex{$rank})
-              $(Expr(:meta, :inline, :propagate_inbounds))
-              setindex!(arr, val, $([:(inds[$i]) for i in 1:rank]...))
-            end))
+    if isimmutable
+        push!(decls,
+              :(function setindex{$(typeparams...)}(arr::$typenameparams, val,
+                                                    inds::CartesianIndex{$rank})
+                  $(Expr(:meta, :inline, :propagate_inbounds))
+                  setindex(arr, val, $([:(inds[$i]) for i in 1:rank]...))
+                end))
+    else
+        push!(decls,
+              :(function setindex!{$(typeparams...)}(arr::$typenameparams, val,
+                                                     inds::CartesianIndex{$rank})
+                  $(Expr(:meta, :inline, :propagate_inbounds))
+                  setindex!(arr, val, $([:(inds[$i]) for i in 1:rank]...))
+                end))
+    end
 
     eval(quote $(decls...) end)
 
@@ -473,8 +538,10 @@ end
 
 
 
-@generated function genFlexArray(dimspecs...)
+@generated function genFlexArray{I}(::Type{Val{I}}, dimspecs...)
+    @assert isa(I, Bool)
     @assert isa(dimspecs, Tuple)
+    isimmutable = I
     rank = length(dimspecs)
     bndspec = ntuple(rank) do n
         dimspec = dimspecs[n]
@@ -490,7 +557,12 @@ end
             @assert false
         end
     end
-    :(genFlexArray(Val{$bndspec}))
+    if isimmutable
+        if !all(bs -> bs === (true,true), bndspec)
+            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
+        end
+    end
+    :(genFlexArray(Val{I}, Val{$bndspec}))
 end
 
 
@@ -522,8 +594,44 @@ export FlexArray
     end
     quote
         $(Expr(:meta, :inline))
-        arrtype = genFlexArray(dimspecs...)
+        arrtype = genFlexArray(Val{false}, dimspecs...)
         arrtype{$(dims...)}
+    end
+end
+
+export ImmutableArray
+@generated function ImmutableArray(dimspecs...)
+    @assert isa(dimspecs, Tuple)
+    rank = length(dimspecs)
+    dims = []
+    lens = []
+    for n in 1:rank
+        dimspec = dimspecs[n]
+        if dimspec <: Colon || dimspec <: Tuple{Void, Void}
+            # do nothing
+        elseif dimspec <: Integer
+            push!(dims, :(Int(dimspecs[$n])))
+        elseif dimspec <: Tuple{Integer, Void}
+            push!(dims, :(Int(dimspecs[$n][1])))
+        elseif dimspec <: UnitRange
+            push!(dims, :(Int(dimspecs[$n].start)))
+            push!(dims, :(Int(dimspecs[$n].stop)))
+            push!(lens, :(max(0, Int(dimspecs[$n].stop) - Int(dimspecs[$n].start) + 1)))
+        elseif dimspec <: Tuple{Integer, Integer}
+            push!(dims, :(Int(dimspecs[$n][1])))
+            push!(dims, :(Int(dimspecs[$n][2])))
+            push!(lens, :(max(0, Int(dimspecs[$n][2]) - Int(dimspecs[$n][1]) + 1)))
+        elseif dimspec <: Tuple{Void, Integer}
+            push!(dims, :(Int(dimspecs[$n][2])))
+        else
+            @assert false
+        end
+    end
+    quote
+        $(Expr(:meta, :inline))
+        arrtype = genFlexArray(Val{true}, dimspecs...)
+        len = *(1, $(lens...))
+        arrtype{$(dims...), len}
     end
 end
 

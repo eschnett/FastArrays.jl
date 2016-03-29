@@ -214,6 +214,28 @@ end
 @test_throws BoundsError a3[0,10,0]
 @test_throws BoundsError a3[0,0,10]
 
+# Immutable arrays
+
+typealias I0 ImmutableArray()
+i0 = I0{Int}()
+@test sizeof(i0) == sizeof(Int)*2^0
+
+typealias I1 ImmutableArray(0:1)
+i1 = I1{Int}(:)
+@test sizeof(i1) == sizeof(Int)*2^1
+
+typealias I2 ImmutableArray(0:1, 0:1)
+i2 = I2{Int}(:,:)
+@test sizeof(i2) == sizeof(Int)*2^2
+for i in eachindex(i2)
+    i2 = setindex(i2, 1, i)
+end
+@test sum(i2) == 2^2
+
+typealias I10 ImmutableArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
+i10 = I10{Int}(:,:,:,:,:,:,:,:,:,:)
+@test sizeof(i10) == sizeof(Int)*2^10
+
 # A real-world example
 
 typealias Box FlexArray(0:9, 0){Int}
