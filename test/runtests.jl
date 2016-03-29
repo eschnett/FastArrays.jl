@@ -182,6 +182,23 @@ for k in 0:9, j in 0:9, i in 0:9
 end
 @test s == 1000
 
+# 10D arrays
+typealias BinArr10d FlexArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
+a10b = BinArr10d{Complex128}(:,:,:,:,:,:,:,:,:,:)
+@test length(a10b) == 2^10
+for i in eachindex(a10b)
+    a10b[i] = 1
+end
+@test sum(a10b) == 2^10
+
+typealias Arr10d FlexArray(:,:,:,:,:,:,:,:,:,:)
+a10 = Arr10d{Complex128}(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
+@test length(a10) == 2^10
+for i in eachindex(a10b)
+    a10[i] = 1
+end
+@test sum(a10) == 2^10
+
 # Element-wise iteration
 s = zero(eltype(a3))
 for a in a3
@@ -189,7 +206,7 @@ for a in a3
 end
 @test s == 1000
 
-# Bounds checkout
+# Bounds checking
 @test_throws BoundsError a3[-1,0,0]
 @test_throws BoundsError a3[0,-1,0]
 @test_throws BoundsError a3[0,0,-1]
