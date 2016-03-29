@@ -23,31 +23,31 @@ lbnd{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = lbnd(T, Val{n})
 ubnd{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = ubnd(T, Val{n})
 size{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = size(T, Val{n})
 
-# Note: Use ntuple instead of generated functions once the closure in ntuple is
-# efficient
+# Note: Use ntuple instead of generated functions once the closure in
+# ntuple is efficient
 # lbnd{T,N}(arr::AbstractFlexArray{T,N}) = ntuple(n->lbnd(arr, Val{n}), N)
 @generated function lbnd(arr::AbstractFlexArray)
-    Expr(:tuple, [:(lbnd(arr, Val{$n})) for n in 1:ndims(arr)]...)
+    :(tuple($([:(lbnd(arr, Val{$n})) for n in 1:ndims(arr)]...)))
 end
 # The Base.Cartesian macros expect literals, not parameters
 # function lbnd{T,N}(arr::AbstractFlexArray{T,N})
 #     @ntuple N n->lbnd(arr, Val{n})
 # end
 @generated function ubnd(arr::AbstractFlexArray)
-    Expr(:tuple, [:(ubnd(arr, Val{$n})) for n in 1:ndims(arr)]...)
+    :(tuple($([:(ubnd(arr, Val{$n})) for n in 1:ndims(arr)]...)))
 end
 @generated function size(arr::AbstractFlexArray)
-    Expr(:tuple, [:(size(arr, Val{$n})) for n in 1:ndims(arr)]...)
+    :(tuple($([:(size(arr, Val{$n})) for n in 1:ndims(arr)]...)))
 end
 
 @generated function lbnd{T <: AbstractFlexArray}(::Type{T})
-    Expr(:tuple, [:(lbnd(T, Val{$n})) for n in 1:ndims(T)]...)
+    :(tuple($([:(lbnd(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
 @generated function ubnd{T <: AbstractFlexArray}(::Type{T})
-    Expr(:tuple, [:(ubnd(T, Val{$n})) for n in 1:ndims(T)]...)
+    :(tuple($([:(ubnd(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
 @generated function size{T <: AbstractFlexArray}(::Type{T})
-    Expr(:tuple, [:(size(T, Val{$n})) for n in 1:ndims(T)]...)
+    :(tuple($([:(size(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
 
 eachindex(arr::AbstractFlexArray) =
@@ -62,8 +62,7 @@ next(arr::AbstractFlexArray, i) = arr[i], next(eachindex(arr), i)[2]
 import Base: show
 @generated function show(io::IO, arr::AbstractFlexArray)
     inds = [symbol(:i,n) for n in 1:ndims(arr)]
-    elt = Expr(:call, :getindex, :arr, inds...)
-    stmt = :(print(io, $elt, " "))
+    stmt = :(print(io, arr[$(inds...)], " "))
     for n in ndims(arr):-1:1
         stmt = quote
             print(io, "[")
@@ -85,30 +84,34 @@ end
 #     end
 # end
 
-# Base.print_matrix assumes that each dimension has a range 1:size. Obviously,
-# this is not going to work, so we replace this output function.
-# Julia v0.4
-function Base.print_matrix(io::IO, X::AbstractFlexArray,
-                      sz::Tuple{Integer, Integer} = (s = tty_size(); (s[1]-4, s[2])),
-                      pre::AbstractString = " ",
-                      sep::AbstractString = "  ",
-                      post::AbstractString = "",
-                      hdots::AbstractString = "  \u2026  ",
-                      vdots::AbstractString = "\u22ee",
-                      ddots::AbstractString = "  \u22f1  ",
-                      hmod::Integer = 5, vmod::Integer = 5)
-    print(io, X)
-end
-# Julia v0.5
-function Base.print_matrix(io::IO, X::AbstractFlexArray,
-                      pre::AbstractString = " ",  # pre-matrix string
-                      sep::AbstractString = "  ", # separator between elements
-                      post::AbstractString = "",  # post-matrix string
-                      hdots::AbstractString = "  \u2026  ",
-                      vdots::AbstractString = "\u22ee",
-                      ddots::AbstractString = "  \u22f1  ",
-                      hmod::Integer = 5, vmod::Integer = 5)
-    print(io, X)
+# Base.print_matrix assumes that each dimension has a range 1:size.
+# Obviously, this is not going to work, so we replace this output
+# function.
+if VERSION < v"0.5.0-"
+    # Julia v0.4
+    function Base.print_matrix(io::IO, X::AbstractFlexArray,
+                               sz::Tuple{Integer, Integer} = (s = tty_size(); (s[1]-4, s[2])),
+                               pre::AbstractString = " ",
+                               sep::AbstractString = "  ",
+                               post::AbstractString = "",
+                               hdots::AbstractString = "  \u2026  ",
+                               vdots::AbstractString = "\u22ee",
+                               ddots::AbstractString = "  \u22f1  ",
+                               hmod::Integer = 5, vmod::Integer = 5)
+        print(io, X)
+    end
+else
+    # Julia v0.5
+    function Base.print_matrix(io::IO, X::AbstractFlexArray,
+                               pre::AbstractString = " ", # pre-matrix string
+                               sep::AbstractString = "  ", # separator between elements
+                               post::AbstractString = "", # post-matrix string
+                               hdots::AbstractString = "  \u2026  ",
+                               vdots::AbstractString = "\u22ee",
+                               ddots::AbstractString = "  \u22f1  ",
+                               hmod::Integer = 5, vmod::Integer = 5)
+        print(io, X)
+    end
 end
 
 
@@ -157,9 +160,9 @@ typealias BndSpec NTuple{2, Bool}
         symbol(names...)
     end
 
-    # Sometimes, e.g. when running tests with "coverage=true", generated
-    # functions are generated multiple times. Catch this early to avoid defining
-    # the implementation type multiple times.
+    # Sometimes, e.g. when running tests with "coverage=true",
+    # generated functions are generated multiple times. Catch this
+    # early to avoid defining the implementation type multiple times.
     type_exists = true
     try
         eval(typename)
@@ -182,296 +185,284 @@ typealias BndSpec NTuple{2, Bool}
     push!(typeparams, :T)
 
     # Type name with parameters
-    typenameparams = Expr(:curly, typename, typeparams...)
+    typenameparams = :($typename{$(typeparams...)})
 
-    push!(decls, Expr(:type, false #=immutable=#,
-        Expr(:<:, typenameparams, :(AbstractFlexArray{T,$rank})),
+    let
+        body = []
+        for n in 1:rank
+            !fixed_lbnd[n] && push!(body, :($(lbnd[n])::Int))
+            !fixed_ubnd[n] && push!(body, :($(ubnd[n])::Int))
+            !fixed_stride[n] && push!(body, :($(stride[n])::Int))
+        end
+        !fixed_length && push!(body, :(length::Int))
+        !fixed_offset && push!(body, :(offset::Int))
+        # TODO: use a more low-level array representation
+        push!(body, :(data::Vector{T}))
         let
-            body = []
+            args = []
+            # Add a dummy Void argument to ensure that this
+            # constructor is not called accidentally
+            push!(args, :(::Void))
             for n in 1:rank
-                !fixed_lbnd[n] && push!(body, :($(lbnd[n])::Int))
-                !fixed_ubnd[n] && push!(body, :($(ubnd[n])::Int))
-                !fixed_stride[n] && push!(body, :($(stride[n])::Int))
+                !fixed_lbnd[n] && push!(args, :($(lbnd[n])::Int))
+                !fixed_ubnd[n] && push!(args, :($(ubnd[n])::Int))
             end
-            !fixed_length && push!(body, :(length::Int))
-            !fixed_offset && push!(body, :(offset::Int))
-            # TODO: use a more low-level array representation
-            push!(body, :(data::Vector{T}))
-            push!(body, Expr(:(=),
-                let
-                    args = []
-                    # Add a dummy Void argument to ensure that this constructor
-                    # is not called accidentally
-                    push!(args, :(::Void))
-                    for n in 1:rank
-                        !fixed_lbnd[n] && push!(args, :($(lbnd[n])::Int))
-                        !fixed_ubnd[n] && push!(args, :($(ubnd[n])::Int))
-                    end
-                    Expr(:call, typename, args...)
-                end,
-                let
-                    stmts = []
-                    push!(stmts, :($(stride[1]) = 1))
-                    for n in 2:rank+1
-                        push!(stmts,
-                            :($(stride[n]) =
-                                $(stride[n-1]) *
-                                max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1)))
-                    end
-                    push!(stmts, :(length = $(stride[rank+1])))
-                    if !fixed_offset
-                        push!(stmts,
-                            :(offset =
-                                $(Expr(:call, :+, 0,
-                                    [:($(stride[n]) * $(lbnd[n]))
-                                        for n in 1:rank]...))))
-                    end
-                    push!(stmts,
-                        let
-                            args = []
-                            for n in 1:rank
-                                !fixed_lbnd[n] && push!(args, lbnd[n])
-                                !fixed_ubnd[n] && push!(args, ubnd[n])
-                                !fixed_stride[n] && push!(args, stride[n])
-                            end
-                            !fixed_length && push!(args, :length)
-                            !fixed_offset && push!(args, :offset)
-                            push!(args, :(Vector{T}(length)))
-                            Expr(:call, :new, args...)
-                        end)
-                    Expr(:block, stmts...)
+            stmts = []
+            push!(stmts, :($(stride[1]) = 1))
+            for n in 2:rank+1
+                push!(stmts,
+                      :($(stride[n]) =
+                        $(stride[n-1]) *
+                        max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1)))
+            end
+            push!(stmts, :(length = $(stride[rank+1])))
+            if !fixed_offset
+                push!(stmts,
+                      :(offset =
+                        +(0, $([:($(stride[n]) * $(lbnd[n]))
+                                for n in 1:rank]...))))
+            end
+            let
+                newargs = []
+                for n in 1:rank
+                    !fixed_lbnd[n] && push!(newargs, lbnd[n])
+                    !fixed_ubnd[n] && push!(newargs, ubnd[n])
+                    !fixed_stride[n] && push!(newargs, stride[n])
+                end
+                !fixed_length && push!(newargs, :length)
+                !fixed_offset && push!(newargs, :offset)
+                push!(newargs, :(Vector{T}(length)))
+                push!(stmts, :(new($(newargs...))))
+            end
+            push!(body,
+                  :(function $typename($(args...))
+                      $(stmts...)
+                    end))
+        end
+        push!(decls,
+              :(type $typenameparams <: AbstractFlexArray{T,$rank}
+                  $(body...)
                 end))
-            Expr(:block, body...)
-        end))
+    end
 
     # Outer constructor
 
-    push!(decls, Expr(:(=),
-        Expr(:call, Expr(:curly, :call, typeparams...),
-            :(::Type{$typenameparams}),
-            let
-                args = []
-                for n in 1:rank
-                    if fixed_lbnd[n]
-                        if fixed_ubnd[n]
-                            push!(args, :(::Colon))
-                        else
-                            push!(args, :($(ubnd[n])::Int))
-                        end
-                    else
-                        if fixed_ubnd[n]
-                            push!(args, :($(lbnd[n])::Tuple{Integer}))
-                        else
-                            push!(args, :($(symbol(:bnds,n))::UnitRange{Int}))
-                        end
-                    end
+    let
+        args = []
+        callargs = []
+        for n in 1:rank
+            if fixed_lbnd[n]
+                if fixed_ubnd[n]
+                    push!(args, :(::Colon))
+                else
+                    push!(args, :($(ubnd[n])::Int))
+                    push!(callargs, ubnd[n])
                 end
-                args
-            end...),
-        Expr(:call, typenameparams,
-            let
-                args = []
-                push!(args, :nothing)
-                for n in 1:rank
-                    if fixed_lbnd[n]
-                        if fixed_ubnd[n]
-                        else
-                            push!(args, ubnd[n])
-                        end
-                    else
-                        if fixed_ubnd[n]
-                            push!(args, :($(lbnd[n])[1]))
-                        else
-                            push!(args, :($(symbol(:bnds,n)).start))
-                            push!(args, :($(symbol(:bnds,n)).stop))
-                        end
-                    end
+            else
+                if fixed_ubnd[n]
+                    push!(args, :($(lbnd[n])::Tuple{Integer}))
+                    push!(callargs, :($(lbnd[n])[1]))
+                else
+                    push!(args, :($(symbol(:bnds,n))::UnitRange{Int}))
+                    push!(callargs, :($(symbol(:bnds,n)).start))
+                    push!(callargs, :($(symbol(:bnds,n)).stop))
                 end
-                args
-            end...)))
+            end
+        end
+        # push!(decls,
+        #       :(function $(Expr(:curly, :call, typeparams...))(::Type{$typenameparams}, $(args...))
+        #           $typenameparams(nothing, $(callargs...))
+        #         end))
+        push!(decls,
+              :(function (::Type{$typenameparams}){$(typeparams...)}($(args...))
+                  $typenameparams(nothing, $(callargs...))
+                end))
+    end
 
     # Lower bound, upper bound, stride, length, offset
 
     for n in 1:rank
         if fixed_lbnd[n]
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :lbnd, typeparams...),
-                    :(::$typenameparams), :(::Type{Val{$n}})),
-                lbnd[n]))
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :lbnd, typeparams...),
-                    :(::Type{$typenameparams}), :(::Type{Val{$n}})),
-                lbnd[n]))
+            push!(decls,
+                  :(function lbnd{$(typeparams...)}(::$typenameparams,
+                                                    ::Type{Val{$n}})
+                      $(lbnd[n])
+                    end))
+            push!(decls,
+                  :(function lbnd{$(typeparams...)}(::Type{$typenameparams},
+                                                    ::Type{Val{$n}})
+                      $(lbnd[n])
+                    end))
         else
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :lbnd, typeparams...),
-                    :(arr::$typenameparams), :(::Type{Val{$n}})),
-                :(arr.$(lbnd[n]))))
+            push!(decls,
+                  :(function lbnd{$(typeparams...)}(arr::$typenameparams,
+                                                    ::Type{Val{$n}})
+                      arr.$(lbnd[n])
+                    end))
         end
     end
 
     for n in 1:rank
         if fixed_ubnd[n]
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :ubnd, typeparams...),
-                    :(::$typenameparams), :(::Type{Val{$n}})),
-                ubnd[n]))
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :ubnd, typeparams...),
-                    :(::Type{$typenameparams}), :(::Type{Val{$n}})),
-                ubnd[n]))
+            push!(decls,
+                  :(function ubnd{$(typeparams...)}(::$typenameparams,
+                                                    ::Type{Val{$n}})
+                      $(ubnd[n])
+                    end))
+            push!(decls,
+                  :(function ubnd{$(typeparams...)}(::Type{$typenameparams},
+                                                    ::Type{Val{$n}})
+                      $(ubnd[n])
+                    end))
         else
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :ubnd, typeparams...),
-                    :(arr::$typenameparams), :(::Type{Val{$n}})),
-                :(arr.$(ubnd[n]))))
+            push!(decls,
+                  :(function ubnd{$(typeparams...)}(arr::$typenameparams,
+                                                    ::Type{Val{$n}})
+                      arr.$(ubnd[n])
+                    end))
         end
     end
 
     for n in 1:rank
         if fixed_stride[n]
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :stride, typeparams...),
-                    :(::$typenameparams), :(::Type{Val{$n}})),
-                Expr(:block,
-                    Expr(:meta, :inline),
-                    Expr(:call, :*, 1,
-                        [:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
-                            for m in 1:(n-1)]...))))
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :stride, typeparams...),
-                    :(::Type{$typenameparams}), :(::Type{Val{$n}})),
-                Expr(:block,
-                    Expr(:meta, :inline),
-                    Expr(:call, :*, 1,
-                        [:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
-                            for m in 1:(n-1)]...))))
+            push!(decls,
+                  :(function stride{$(typeparams...)}(::$typenameparams,
+                                                      ::Type{Val{$n}})
+                      $(Expr(:meta, :inline))
+                      *(1, $([:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
+                              for m in 1:(n-1)]...))
+                    end))
+            push!(decls,
+                  :(function stride{$(typeparams...)}(::Type{$typenameparams},
+                                                      ::Type{Val{$n}})
+                      $(Expr(:meta, :inline))
+                      *(1, $([:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
+                              for m in 1:(n-1)]...))
+                    end))
         else
-            push!(decls, Expr(:(=),
-                Expr(:call, Expr(:curly, :stride, typeparams...),
-                    :(arr::$typenameparams), :(::Type{Val{$n}})),
-                :(arr.$(stride[n]))))
+            push!(decls,
+                  :(function stride{$(typeparams...)}(arr::$typenameparams,
+                                                      ::Type{Val{$n}})
+                      arr.$(stride[n])
+                    end))
         end
     end
 
     if fixed_length
-        push!(decls, Expr(:(=),
-            Expr(:call, Expr(:curly, :length, typeparams...),
-                :(::$typenameparams)),
-            Expr(:block,
-                Expr(:meta, :inline),
-                Expr(:call, :*, 1,
-                    [:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
-                        for n in 1:rank]...))))
-        push!(decls, Expr(:(=),
-            Expr(:call, Expr(:curly, :length, typeparams...),
-                :(::Type{$typenameparams})),
-            Expr(:block,
-                Expr(:meta, :inline),
-                Expr(:call, :*, 1,
-                    [:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
-                        for n in 1:rank]...))))
+        # These could be generated functions; the length is known at
+        # compile time
+        push!(decls,
+              :(function length{$(typeparams...)}(::$typenameparams)
+                  $(Expr(:meta, :inline))
+                  *(1, $([:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
+                          for n in 1:rank]...))
+                end))
+        push!(decls,
+              :(function length{$(typeparams...)}(::Type{$typenameparams})
+                  $(Expr(:meta, :inline))
+                  *(1, $([:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
+                          for n in 1:rank]...))
+                end))
     else
-        push!(decls, Expr(:(=),
-            Expr(:call, Expr(:curly, :length, typeparams...),
-                :(arr::$typenameparams)),
-            :(arr.length)))
+        push!(decls,
+              :(function length{$(typeparams...)}(arr::$typenameparams)
+                  arr.length
+                end))
     end
 
     if fixed_offset
-        push!(decls, Expr(:(=),
-            Expr(:call, Expr(:curly, :offset, typeparams...),
-                :(::$typenameparams)),
-            Expr(:block,
-                Expr(:meta, :inline),
-                [Expr(:(=), stride[n],
-                    n == 1 ?
-                    1 :
-                    :($(stride[n-1]) * max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1)))
-                    for n in 1:rank]...,
-                Expr(:call, :+, 0,
-                    [:($(stride[n]) * $(lbnd[n])) for n in 1:rank]...))))
-        push!(decls, Expr(:(=),
-            Expr(:call, Expr(:curly, :offset, typeparams...),
-                :(::Type{$typenameparams})),
-            Expr(:block,
-                Expr(:meta, :inline),
-                [Expr(:(=), stride[n],
-                    n == 1 ?
-                    1 :
-                    :($(stride[n-1]) * max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1)))
-                    for n in 1:rank]...,
-                Expr(:call, :+, 0,
-                    [:($(stride[n]) * $(lbnd[n])) for n in 1:rank]...))))
+        push!(decls,
+              :(function offset{$(typeparams...)}(::$typenameparams)
+                  $(Expr(:meta, :inline))
+                  $([:($(stride[n]) =
+                       $(n == 1 ?
+                         1 :
+                         :($(stride[n-1]) *
+                           max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1))))
+                     for n in 1:rank]...)
+                  +(0, $([:($(stride[n]) * $(lbnd[n])) for n in 1:rank]...))
+                end))
+        push!(decls,
+              :(function offset{$(typeparams...)}(::Type{$typenameparams})
+                  $(Expr(:meta, :inline))
+                  $([:($(stride[n]) =
+                       $(n == 1 ?
+                         1 :
+                         :($(stride[n-1]) *
+                           max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1))))
+                     for n in 1:rank]...)
+                  +(0, $([:($(stride[n]) * $(lbnd[n])) for n in 1:rank]...))
+                end))
     else
-        push!(decls, Expr(:(=),
-            Expr(:call, Expr(:curly, :offset, typeparams...),
-                :(arr::$typenameparams)),
-            :(arr.offset)))
+        push!(decls,
+              :(function offset{$(typeparams...)}(arr::$typenameparams)
+                  arr.offset
+                end))
     end
 
     # Array indexing
 
-    # TODO: Define this as generated function once variable-length argument
-    # lists are handled efficiently
-    push!(decls, Expr(:(=),
-        Expr(:call,
-            Expr(:curly, :checkbounds, typeparams...),
-            :(arr::$typenameparams),
-            [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        Expr(:call, :&, :true,
-            [:(lbnd(arr, Val{$n}) <= $(symbol(:ind,n)) <= ubnd(arr, Val{$n}))
-                for n in 1:rank]...)))
+    # TODO: Define this as generated function once variable-length
+    # argument lists are handled efficiently
+    push!(decls,
+          :(function checkbounds{$(typeparams...)}(arr::$typenameparams,
+                                                   $([:($(symbol(:ind,n))::Int)
+                                                      for n in 1:rank]...))
+              (&)(true, $([:(lbnd(arr, Val{$n}) <= $(symbol(:ind,n)) <=
+                             ubnd(arr, Val{$n}))
+                           for n in 1:rank]...))
+            end))
 
-    push!(decls, Expr(:(=),
-        Expr(:call,
-            Expr(:curly, :linearindex, typeparams...),
-            :(arr::$typenameparams),
-            [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        Expr(:block,
-            Expr(:meta, :inline),
-            :(@assert $(Expr(:call, :checkbounds, :arr,
-                [:($(symbol(:ind,n))::Int) for n in 1:rank]...))),
-            Expr(:call, :+,
-                [:($(symbol(:ind,n)) * stride(arr, Val{$n}))
-                    for n in 1:rank]...,
-                :(- offset(arr))))))
+    push!(decls,
+          :(function linearindex{$(typeparams...)}(arr::$typenameparams,
+                                                   $([:($(symbol(:ind,n))::Int)
+                                                      for n in 1:rank]...))
+              $(Expr(:meta, :inline))
+              @assert checkbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
+              +($([:($(symbol(:ind,n)) * stride(arr, Val{$n}))
+                   for n in 1:rank]...),
+                - offset(arr))
+            end))
 
-    push!(decls, Expr(:(=),
-        Expr(:call,
-            Expr(:curly, :getindex, typeparams...),
-            :(arr::$typenameparams),
-            [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        Expr(:block,
-            Expr(:meta, :inline),
-            Expr(:boundscheck, false),
-            :(val = arr.data[$(Expr(:call, :linearindex, :arr,
-                [symbol(:ind,n) for n in 1:rank]...)) + 1]),
-            Expr(:boundscheck, :pop),
-            :val)))
+    push!(decls,
+          :(function getindex{$(typeparams...)}(arr::$typenameparams,
+                                                $([:($(symbol(:ind,n))::Int)
+                                                   for n in 1:rank]...))
+              $(Expr(:meta, :inline))
+              $(Expr(:boundscheck, false))
+              val = arr.data[linearindex(arr,
+                                         $([symbol(:ind,n)
+                                            for n in 1:rank]...)) + 1]
+              $(Expr(:boundscheck, :pop))
+              val
+            end))
 
-    push!(decls, Expr(:(=),
-        Expr(:call,
-            Expr(:curly, :setindex!, typeparams...),
-            :(arr::$typenameparams),
-            :val,
-            [:($(symbol(:ind,n))::Int) for n in 1:rank]...),
-        Expr(:block,
-            Expr(:meta, :inline),
-            Expr(:boundscheck, false),
-            :(arr.data[$(Expr(:call, :linearindex, :arr,
-                [symbol(:ind,n) for n in 1:rank]...)) + 1] = val))))
+    push!(decls,
+          :(function setindex!{$(typeparams...)}(arr::$typenameparams,
+                                                 val,
+                                                 $([:($(symbol(:ind,n))::Int)
+                                                    for n in 1:rank]...))
+              $(Expr(:meta, :inline))
+              $(Expr(:boundscheck, false))
+              arr.data[linearindex(arr,
+                                   $([symbol(:ind,n)
+                                      for n in 1:rank]...)) + 1] = val
+              $(Expr(:boundscheck, :pop))
+              val
+            end))
 
-    push!(decls, :(
-        getindex(arr::$typenameparams, inds::CartesianIndex{$rank}) =
-            $(Expr(:call, :getindex, :arr, [:(inds[$i]) for i in 1:rank]...))))
+    push!(decls,
+          :(function getindex(arr::$typenameparams, inds::CartesianIndex{$rank})
+              getindex(arr, $([:(inds[$i]) for i in 1:rank]...))
+            end))
 
-    push!(decls, :(
-        setindex!(arr::$typenameparams, val, inds::CartesianIndex{$rank}) =
-            $(Expr(:call, :setindex!, :arr, :val,
-                [:(inds[$i]) for i in 1:rank]...))))
+    push!(decls,
+          :(function setindex!(arr::$typenameparams, val,
+                               inds::CartesianIndex{$rank})
+              setindex!(arr, val, $([:(inds[$i]) for i in 1:rank]...))
+            end))
 
-    eval(Expr(:block, decls...))
+    eval(quote $(decls...) end)
 
     typename
 end
@@ -528,7 +519,7 @@ export FlexArray
     quote
         $(Expr(:meta, :inline))
         arrtype = genFlexArray(dimspecs...)
-        $(Expr(:curly, :arrtype, dims...))
+        arrtype{$(dims...)}
     end
 end
 
