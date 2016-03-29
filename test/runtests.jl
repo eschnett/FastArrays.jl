@@ -189,6 +189,14 @@ for a in a3
 end
 @test s == 1000
 
+# Bounds checkout
+@test_throws BoundsError a3[-1,0,0]
+@test_throws BoundsError a3[0,-1,0]
+@test_throws BoundsError a3[0,0,-1]
+@test_throws BoundsError a3[10,0,0]
+@test_throws BoundsError a3[0,10,0]
+@test_throws BoundsError a3[0,0,10]
+
 # A real-world example
 
 typealias Box FlexArray(0:9, 0){Int}

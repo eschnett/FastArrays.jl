@@ -395,23 +395,36 @@ typealias BndSpec NTuple{2, Bool}
 
     # Array indexing
 
-    # TODO: Define this as generated function once variable-length
+    # TODO: Define these as generated function once variable-length
     # argument lists are handled efficiently
+
     push!(decls,
-          :(function checkbounds{$(typeparams...)}(arr::$typenameparams,
-                                                   $([:($(symbol(:ind,n))::Int)
-                                                      for n in 1:rank]...))
+          :(function isinbounds{$(typeparams...)}(arr::$typenameparams,
+                                                  $([:($(symbol(:ind,n))::Int)
+                                                     for n in 1:rank]...))
+              $(Expr(:meta, :inline))
               (&)(true, $([:(lbnd(arr, Val{$n}) <= $(symbol(:ind,n)) <=
                              ubnd(arr, Val{$n}))
                            for n in 1:rank]...))
             end))
 
     push!(decls,
+          :(function checkbounds{$(typeparams...)}(arr::$typenameparams,
+                                                  $([:($(symbol(:ind,n))::Int)
+                                                     for n in 1:rank]...))
+              if !isinbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
+                  Base.throw_boundserror(arr, tuple($([symbol(:ind,n)
+                                                       for n in 1:rank]...)))
+              end
+            end))
+
+    push!(decls,
           :(function linearindex{$(typeparams...)}(arr::$typenameparams,
                                                    $([:($(symbol(:ind,n))::Int)
                                                       for n in 1:rank]...))
-              $(Expr(:meta, :inline))
-              @assert checkbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
+              $(Expr(:meta, :inline, :propagate_inbounds))
+              @boundscheck checkbounds(arr,
+                                       $([symbol(:ind,n) for n in 1:rank]...))
               +($([:($(symbol(:ind,n)) * stride(arr, Val{$n}))
                    for n in 1:rank]...),
                 - offset(arr))
@@ -421,12 +434,9 @@ typealias BndSpec NTuple{2, Bool}
           :(function getindex{$(typeparams...)}(arr::$typenameparams,
                                                 $([:($(symbol(:ind,n))::Int)
                                                    for n in 1:rank]...))
-              $(Expr(:meta, :inline))
-              $(Expr(:boundscheck, false))
-              val = arr.data[linearindex(arr,
-                                         $([symbol(:ind,n)
-                                            for n in 1:rank]...)) + 1]
-              $(Expr(:boundscheck, :pop))
+              $(Expr(:meta, :inline, :propagate_inbounds))
+              idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
+              @inbounds val = arr.data[idx + 1]
               val
             end))
 
@@ -435,23 +445,22 @@ typealias BndSpec NTuple{2, Bool}
                                                  val,
                                                  $([:($(symbol(:ind,n))::Int)
                                                     for n in 1:rank]...))
-              $(Expr(:meta, :inline))
-              $(Expr(:boundscheck, false))
-              arr.data[linearindex(arr,
-                                   $([symbol(:ind,n)
-                                      for n in 1:rank]...)) + 1] = val
-              $(Expr(:boundscheck, :pop))
+              $(Expr(:meta, :inline, :propagate_inbounds))
+              idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
+              @inbounds arr.data[idx + 1] = val
               val
             end))
 
     push!(decls,
           :(function getindex(arr::$typenameparams, inds::CartesianIndex{$rank})
+              $(Expr(:meta, :inline, :propagate_inbounds))
               getindex(arr, $([:(inds[$i]) for i in 1:rank]...))
             end))
 
     push!(decls,
           :(function setindex!(arr::$typenameparams, val,
                                inds::CartesianIndex{$rank})
+              $(Expr(:meta, :inline, :propagate_inbounds))
               setindex!(arr, val, $([:(inds[$i]) for i in 1:rank]...))
             end))
 
