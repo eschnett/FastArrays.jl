@@ -163,24 +163,12 @@ typealias BndSpec NTuple{2, Bool}
     # Sometimes, e.g. when running tests with "coverage=true",
     # generated functions are generated multiple times. Catch this
     # early to avoid defining the implementation type multiple times.
-    type_exists = true
-    try
-        eval(typename)
-    catch e
-        if isa(e, UndefVarError)
-            type_exists = false
-        else
-            rethrow(e)
-        end
-    end
-    type_exists && return typename
+    isdefined(FlexibleArrays, typename) && return typename
 
     typeparams = []
     for n in 1:rank
         fixed_lbnd[n] && push!(typeparams, lbnd[n])
         fixed_ubnd[n] && push!(typeparams, ubnd[n])
-        # push!(typeparams, fixed_lbnd[n] ? lbnd[n] : symbol(lbnd[n], "_dummy"))
-        # push!(typeparams, fixed_ubnd[n] ? ubnd[n] : symbol(ubnd[n], "_dummy"))
     end
     push!(typeparams, :T)
 
