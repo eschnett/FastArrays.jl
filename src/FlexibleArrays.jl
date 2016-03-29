@@ -423,8 +423,10 @@ typealias BndSpec NTuple{2, Bool}
                                                    $([:($(symbol(:ind,n))::Int)
                                                       for n in 1:rank]...))
               $(Expr(:meta, :inline, :propagate_inbounds))
-              @boundscheck checkbounds(arr,
-                                       $([symbol(:ind,n) for n in 1:rank]...))
+              # The @boundscheck macro does not exist in Julia 0.4
+              $(Expr(:boundscheck, true))
+              checkbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
+              $(Expr(:boundscheck, :pop))
               +($([:($(symbol(:ind,n)) * stride(arr, Val{$n}))
                    for n in 1:rank]...),
                 - offset(arr))
