@@ -235,7 +235,7 @@ typealias I10 ImmutableArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 i10 = I10{Int}(:,:,:,:,:,:,:,:,:,:)
 @test sizeof(i10) == sizeof(Int)*2^10
 
-# Functor
+# Functor, Applicative Functor
 
 r2 = map(x->1, a2)
 @test r2[1,1] === r2[10,10] === 1
@@ -246,6 +246,14 @@ ri2 = map(x->1, i2)
 @test ri2[0,0] === ri2[1,1] === 1
 qi2 = map((x,y) -> y+1.0, i2, ri2)
 @test qi2[0,0] === qi2[1,1] === 2.0
+
+# Foldable
+
+@test reduce(+, 0, r2) === 100
+@test mapreduce((x,y) -> x+y, +, 0.0, r2, q2) === 300.0
+
+@test reduce(+, 0, ri2) === 4
+@test mapreduce((x,y) -> x+y, +, 0.0, ri2, qi2) === 12.0
 
 # A real-world example
 

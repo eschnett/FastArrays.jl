@@ -682,9 +682,22 @@ end
 
 # Functor, Applicative Functor
 
+# TODO: use @boundscheck
+
 import Base: map
 
-@generated function map_helper!{R,T,N}(f, res::AbstractImmutableFlexArray{R,N},
+@noinline function map_checkbounds(arr, other)
+    lbnd_arr = lbnd(arr)
+    ubnd_arr = ubnd(arr)
+    if lbnd(other) != lbnd_arr
+        Base.throw_boundserror(other, lbnd_arr)
+    end
+    if ubnd(other) != ubnd_arr
+        Base.throw_boundserror(other, ubnd_arr)
+    end
+end
+
+@generated function map_kernel!{R,T,N}(f, res::AbstractImmutableFlexArray{R,N},
                                        arr::AbstractImmutableFlexArray{T,N},
                                        others...)
     nothers = length(others)
@@ -697,7 +710,7 @@ import Base: map
     end
 end
 
-@generated function map_helper!{R,T,N}(f, res::AbstractMutableFlexArray{R,N},
+@generated function map_kernel!{R,T,N}(f, res::AbstractMutableFlexArray{R,N},
                                        arr::AbstractMutableFlexArray{T,N},
                                        others...)
     nothers = length(others)
@@ -709,39 +722,59 @@ end
     end
 end
 
-@generated function map{T,N}(f, arr::AbstractImmutableFlexArray{T,N}, others...)
+@generated function map(f, arr::AbstractFlexArray, others...)
     nothers = length(others)
     quote
-        lbnd_arr = lbnd(arr)
-        ubnd_arr = ubnd(arr)
-        @assert (&)(true, $([:(lbnd(others[$n]) == lbnd_arr &&
-                               ubnd(others[$n]) == ubnd_arr)
-                             for n in 1:nothers]...))
+        $(Expr(:boundscheck, true))
+        $([:(map_checkbounds(arr, others[$n])) for n in 1:nothers]...)
+        $(Expr(:boundscheck, :pop))
         if isempty(arr)
             return similar(arr)
         end
-        i0 = CartesianIndex(lbnd_arr)
+        i0 = CartesianIndex(lbnd(arr))
         r0 = f(arr[i0], $([:(others[$n][i0]) for n in 1:nothers]...))
         R = typeof(r0)
         res = similar(arr, R)
-        map_helper!(f, res, arr, others...)
+        map_kernel!(f, res, arr, $([:(others[$n]) for n in 1:nothers]...))
     end
 end
 
-function map{T,N}(f, arr::AbstractMutableFlexArray{T,N}, others...)
+
+
+# Foldable
+
+import Base: mapreduce, reduce
+
+@generated function mapreduce_kernel(f, op, v0, arr::AbstractFlexArray,
+                                     others...)
     nothers = length(others)
-    lbnd_arr = lbnd(arr)
-    ubnd_arr = ubnd(arr)
-    @assert all(other -> lbnd(other) == lbnd_arr && ubnd(other) == ubnd_arr,
-                others)
-    if isempty(arr)
-        return similar(arr)
+    quote
+        res = v0
+        for i in eachindex(arr)
+            res = op(res, f(arr[i], $([:(others[$n][i])
+                                       for n in 1:nothers]...)))
+        end
+        res
     end
-    i0 = CartesianIndex(lbnd_arr)
-    r0 = f(arr[i0], map(other -> other[i0], others)...)
-    R = typeof(r0)
-    res = similar(arr, R)
-    map_helper!(f, res, arr, others...)
+end
+
+@generated function mapreduce(f, op, v0, arr::AbstractFlexArray, others...)
+    nothers = length(others)
+    quote
+        $(Expr(:boundscheck, true))
+        $([:(map_checkbounds(arr, others[$n])) for n in 1:nothers]...)
+        $(Expr(:boundscheck, :pop))
+        mapreduce_kernel(f, op, v0, arr,
+                         $([:(others[$n]) for n in 1:nothers]...))
+    end
+end
+
+@generated function reduce(op, v0, arr::AbstractFlexArray, others...)
+    nothers = length(others)
+    quote
+        mapreduce(identity, op, v0, arr,
+                  $([:(others[$n]) for n in 1:nothers]...))
+    end
 end
 
 end
