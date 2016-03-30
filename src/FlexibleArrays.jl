@@ -680,9 +680,35 @@ end
 
 
 
-# Functor
+# Functor, Applicative Functor
 
 import Base: map
+
+@generated function map_helper!{R,T,N}(f, res::AbstractImmutableFlexArray{R,N},
+                                       arr::AbstractImmutableFlexArray{T,N},
+                                       others...)
+    nothers = length(others)
+    quote
+        for i in eachindex(res)
+            res = setindex(res, f(arr[i], $([:(others[$n][i])
+                                             for n in 1:nothers]...)), i)
+        end
+        res
+    end
+end
+
+@generated function map_helper!{R,T,N}(f, res::AbstractMutableFlexArray{R,N},
+                                       arr::AbstractMutableFlexArray{T,N},
+                                       others...)
+    nothers = length(others)
+    quote
+        for i in eachindex(res)
+            res[i] = f(arr[i], $([:(others[$n][i]) for n in 1:nothers]...))
+        end
+        res
+    end
+end
+
 @generated function map{T,N}(f, arr::AbstractImmutableFlexArray{T,N}, others...)
     nothers = length(others)
     quote
@@ -698,33 +724,24 @@ import Base: map
         r0 = f(arr[i0], $([:(others[$n][i0]) for n in 1:nothers]...))
         R = typeof(r0)
         res = similar(arr, R)
-        for i in eachindex(res)
-            res = setindex(res, f(arr[i], $([:(others[$n][i])
-                                             for n in 1:nothers]...)), i)
-        end
-        res
+        map_helper!(f, res, arr, others...)
     end
 end
-@generated function map{T,N}(f, arr::AbstractMutableFlexArray{T,N}, others...)
+
+function map{T,N}(f, arr::AbstractMutableFlexArray{T,N}, others...)
     nothers = length(others)
-    quote
-        lbnd_arr = lbnd(arr)
-        ubnd_arr = ubnd(arr)
-        @assert (&)(true, $([:(lbnd(others[$n]) == lbnd_arr &&
-                               ubnd(others[$n]) == ubnd_arr)
-                             for n in 1:nothers]...))
-        if isempty(arr)
-            return similar(arr)
-        end
-        i0 = CartesianIndex(lbnd_arr)
-        r0 = f(arr[i0], $([:(others[$n][i0]) for n in 1:nothers]...))
-        R = typeof(r0)
-        res = similar(arr, R)
-        for i in eachindex(res)
-            res[i] = f(arr[i], $([:(others[$n][i]) for n in 1:nothers]...))
-        end
-        res
+    lbnd_arr = lbnd(arr)
+    ubnd_arr = ubnd(arr)
+    @assert all(other -> lbnd(other) == lbnd_arr && ubnd(other) == ubnd_arr,
+                others)
+    if isempty(arr)
+        return similar(arr)
     end
+    i0 = CartesianIndex(lbnd_arr)
+    r0 = f(arr[i0], map(other -> other[i0], others)...)
+    R = typeof(r0)
+    res = similar(arr, R)
+    map_helper!(f, res, arr, others...)
 end
 
 end
