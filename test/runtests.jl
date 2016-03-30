@@ -139,7 +139,6 @@ for bnds1 in [(1,10), (na,10), (1,na), (na,na)],
     @test ubnd(arr2, 2) === 11
     @test size(arr2, 1) === 10
     @test size(arr2, 2) === 12
-
 end
 
 Arr3 = FlexArray(0:3, 0, 0){Int}
@@ -235,6 +234,18 @@ end
 typealias I10 ImmutableArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 i10 = I10{Int}(:,:,:,:,:,:,:,:,:,:)
 @test sizeof(i10) == sizeof(Int)*2^10
+
+# Functor
+
+r2 = map(x->1, a2)
+@test r2[1,1] === r2[10,10] === 1
+q2 = map((x,y) -> y+1.0, a2, r2)
+@test q2[1,1] === q2[10,10] === 2.0
+
+ri2 = map(x->1, i2)
+@test ri2[0,0] === ri2[1,1] === 1
+qi2 = map((x,y) -> y+1.0, i2, ri2)
+@test qi2[0,0] === qi2[1,1] === 2.0
 
 # A real-world example
 

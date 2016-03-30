@@ -3,12 +3,15 @@ module FlexibleArrays
 # using Base.Cartesian
 
 export AbstractFlexArray
+export AbstractImmutableFlexArray, AbstractMutableFlexArray
 abstract AbstractFlexArray{T,N} <: DenseArray{T,N}
+abstract AbstractImmutableFlexArray{T,N} <: AbstractFlexArray{T,N}
+abstract AbstractMutableFlexArray{T,N} <: AbstractFlexArray{T,N}
 
 # eltype, ndims are provided by DenseArray
 
 export lbnd, ubnd
-import Base: done, eachindex, next, size, start
+import Base: done, eachindex, next, similar, size, start
 
 size{n}(arr::AbstractFlexArray, ::Type{Val{n}}) =
     max(0, ubnd(arr, Val{n}) - lbnd(arr, Val{n}) + 1)
@@ -56,6 +59,9 @@ eachindex(arr::AbstractFlexArray) =
 start(arr::AbstractFlexArray) = start(eachindex(arr))
 done(arr::AbstractFlexArray, i) = done(eachindex(arr), i)
 next(arr::AbstractFlexArray, i) = arr[i], next(eachindex(arr), i)[2]
+
+similar{T,N}(arr::AbstractFlexArray{T,N}, dims::NTuple{N,Int}) =
+    similar(arr, T, dims)
 
 
 
@@ -270,10 +276,17 @@ typealias BndSpec NTuple{2, Bool}
                       new(data)
                     end))
         end
-        push!(decls,
-              :(type $typenameparams <: AbstractFlexArray{T,$rank}
-                  $(body...)
-                end))
+        let
+            if isimmutable
+                stype = :AbstractImmutableFlexArray
+            else
+                stype = :AbstractMutableFlexArray
+            end
+            push!(decls,
+                :(type $typenameparams <: $stype{T,$rank}
+                    $(body...)
+                  end))
+        end
     end
 
     # Outer constructor
@@ -303,7 +316,8 @@ typealias BndSpec NTuple{2, Bool}
         if VERSION < v"0.5.0-"
             # Julia v0.4
             push!(decls,
-                  :(function call{$(typeparams...)}(::Type{$typenameparams}, $(args...))
+                  :(function call{$(typeparams...)}(::Type{$typenameparams},
+                                                    $(args...))
                       $typenameparams(nothing, $(callargs...))
                     end))
         else
@@ -313,6 +327,35 @@ typealias BndSpec NTuple{2, Bool}
                       $typenameparams(nothing, $(callargs...))
                     end))
         end
+    end
+
+    let
+        bndschecks = []
+        for n in 1:rank
+            if fixed_ubnd[n]
+                push!(bndschecks, :(newsize[$n] == size(arr, $n)))
+            end
+        end
+        callargs = []
+        for n in 1:rank
+            if !fixed_lbnd[n]
+                push!(callargs, :(lbnd(arr, $n)))
+            end
+            if !fixed_ubnd[n]
+                push!(callargs, :(newsize[$n] - lbnd(arr, $n) - 1))
+            end
+        end
+        push!(decls,
+              :(function similar{$(typeparams...)}(arr::$typenameparams,
+                                                   newtype::Type = T,
+                                                   newsize::NTuple{$rank,Int} =
+                                                       size(arr))
+                  if !(&)(true, $(bndschecks...))
+                      Base.throw_boundserror(arr, newdims)
+                  end
+                  $typename{$(typeparams[1:end-1]...), newtype}(nothing,
+                                                                $(callargs...))
+                end))
     end
 
     # Lower bound, upper bound, stride, length, offset
@@ -385,8 +428,6 @@ typealias BndSpec NTuple{2, Bool}
     end
 
     if fixed_length
-        # These could be generated functions; the length is known at
-        # compile time
         push!(decls,
               :(function length{$(typeparams...)}(::$typenameparams)
                   $(Expr(:meta, :inline))
@@ -604,7 +645,7 @@ export ImmutableArray
     @assert isa(dimspecs, Tuple)
     rank = length(dimspecs)
     dims = []
-    lens = []
+    sz = []
     for n in 1:rank
         dimspec = dimspecs[n]
         if dimspec <: Colon || dimspec <: Tuple{Void, Void}
@@ -616,11 +657,13 @@ export ImmutableArray
         elseif dimspec <: UnitRange
             push!(dims, :(Int(dimspecs[$n].start)))
             push!(dims, :(Int(dimspecs[$n].stop)))
-            push!(lens, :(max(0, Int(dimspecs[$n].stop) - Int(dimspecs[$n].start) + 1)))
+            push!(sz, :(max(0, (Int(dimspecs[$n].stop) -
+                                Int(dimspecs[$n].start) + 1))))
         elseif dimspec <: Tuple{Integer, Integer}
             push!(dims, :(Int(dimspecs[$n][1])))
             push!(dims, :(Int(dimspecs[$n][2])))
-            push!(lens, :(max(0, Int(dimspecs[$n][2]) - Int(dimspecs[$n][1]) + 1)))
+            push!(sz, :(max(0, (Int(dimspecs[$n][2]) -
+                                Int(dimspecs[$n][1]) + 1))))
         elseif dimspec <: Tuple{Void, Integer}
             push!(dims, :(Int(dimspecs[$n][2])))
         else
@@ -630,8 +673,57 @@ export ImmutableArray
     quote
         $(Expr(:meta, :inline))
         arrtype = genFlexArray(Val{true}, dimspecs...)
-        len = *(1, $(lens...))
+        len = *(1, $(sz...))
         arrtype{$(dims...), len}
+    end
+end
+
+
+
+# Functor
+
+import Base: map
+@generated function map{T,N}(f, arr::AbstractImmutableFlexArray{T,N}, others...)
+    nothers = length(others)
+    quote
+        lbnd_arr = lbnd(arr)
+        ubnd_arr = ubnd(arr)
+        @assert (&)(true, $([:(lbnd(others[$n]) == lbnd_arr &&
+                               ubnd(others[$n]) == ubnd_arr)
+                             for n in 1:nothers]...))
+        if isempty(arr)
+            return similar(arr)
+        end
+        i0 = CartesianIndex(lbnd_arr)
+        r0 = f(arr[i0], $([:(others[$n][i0]) for n in 1:nothers]...))
+        R = typeof(r0)
+        res = similar(arr, R)
+        for i in eachindex(res)
+            res = setindex(res, f(arr[i], $([:(others[$n][i])
+                                             for n in 1:nothers]...)), i)
+        end
+        res
+    end
+end
+@generated function map{T,N}(f, arr::AbstractMutableFlexArray{T,N}, others...)
+    nothers = length(others)
+    quote
+        lbnd_arr = lbnd(arr)
+        ubnd_arr = ubnd(arr)
+        @assert (&)(true, $([:(lbnd(others[$n]) == lbnd_arr &&
+                               ubnd(others[$n]) == ubnd_arr)
+                             for n in 1:nothers]...))
+        if isempty(arr)
+            return similar(arr)
+        end
+        i0 = CartesianIndex(lbnd_arr)
+        r0 = f(arr[i0], $([:(others[$n][i0]) for n in 1:nothers]...))
+        R = typeof(r0)
+        res = similar(arr, R)
+        for i in eachindex(res)
+            res[i] = f(arr[i], $([:(others[$n][i]) for n in 1:nothers]...))
+        end
+        res
     end
 end
 
