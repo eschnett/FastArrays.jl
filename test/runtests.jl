@@ -181,6 +181,19 @@ for k in 0:9, j in 0:9, i in 0:9
 end
 @test s == 1000
 
+# Linear iteration
+for i in 1:length(a3)
+    a3[LinearIndex(i)] = 2
+end
+@test a3[0,0,0] == 2
+@test a3[1,2,3] == 2
+@test a3[9,9,9] == 2
+s = zero(eltype(a3))
+for k in 0:9, j in 0:9, i in 0:9
+    s += a3[i,j,k]
+end
+@test s == 2000
+
 # 10D arrays
 typealias BinArr10d FlexArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 a10b = BinArr10d{Complex128}(:,:,:,:,:,:,:,:,:,:)
@@ -203,7 +216,7 @@ s = zero(eltype(a3))
 for a in a3
     s += a
 end
-@test s == 1000
+@test s == 2000
 
 # Bounds checking
 @test_throws BoundsError a3[-1,0,0]

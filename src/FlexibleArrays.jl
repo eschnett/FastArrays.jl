@@ -53,6 +53,11 @@ end
     :(tuple($([:(size(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
 
+export LinearIndex
+immutable LinearIndex
+    i::Int
+end
+
 eachindex(arr::AbstractFlexArray) =
     CartesianRange(CartesianIndex(lbnd(arr)), CartesianIndex(ubnd(arr)))
 
@@ -503,6 +508,14 @@ typealias BndSpec NTuple{2, Bool}
             end))
 
     push!(decls,
+          :(function checkbounds{$(typeparams...)}(arr::$typenameparams,
+                                                   idx::LinearIndex)
+              if !(1 <= idx.i <= length(arr))
+                  Base.throw_boundserror(arr, tuple(ind))
+              end
+            end))
+
+    push!(decls,
           :(function linearindex{$(typeparams...)}(arr::$typenameparams,
                                                    $([:($(symbol(:ind,n))::Int)
                                                       for n in 1:rank]...))
@@ -511,10 +524,45 @@ typealias BndSpec NTuple{2, Bool}
               $(Expr(:boundscheck, true))
               checkbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
               $(Expr(:boundscheck, :pop))
-              +($([:($(symbol(:ind,n)) * stride(arr, Val{$n}))
-                   for n in 1:rank]...),
-                - offset(arr))
+              LinearIndex(+(0, $([:($(symbol(:ind,n)) * stride(arr, Val{$n}))
+                                  for n in 1:rank]...))
+                          - offset(arr) + 1)
             end))
+
+    push!(decls,
+          :(function getindex{$(typeparams...)}(arr::$typenameparams,
+                                                idx::LinearIndex)
+              $(Expr(:meta, :inline, :propagate_inbounds))
+              # The @boundscheck macro does not exist in Julia 0.4
+              $(Expr(:boundscheck, true))
+              checkbounds(arr, idx)
+              $(Expr(:boundscheck, :pop))
+              @inbounds val = arr.data[idx.i]
+              val
+            end))
+
+    if isimmutable
+        push!(decls,
+              :(function setindex{$(typeparams...)}(arr::$typenameparams, val,
+                                                    idx::LinearIndex)
+                  $(Expr(:meta, :inline, :propagate_inbounds))
+                  $(Expr(:boundscheck, true))
+                  checkbounds(arr, idx)
+                  $(Expr(:boundscheck, :pop))
+                  $typenameparams(nothing, setindex(arr.data, val, idx.i))
+                end))
+    else
+        push!(decls,
+              :(function setindex!{$(typeparams...)}(arr::$typenameparams, val,
+                                                     idx::LinearIndex)
+                  $(Expr(:meta, :inline, :propagate_inbounds))
+                  $(Expr(:boundscheck, true))
+                  checkbounds(arr, idx)
+                  $(Expr(:boundscheck, :pop))
+                  @inbounds arr.data[idx.i] = val
+                  val
+                end))
+    end
 
     push!(decls,
           :(function getindex{$(typeparams...)}(arr::$typenameparams,
@@ -522,7 +570,7 @@ typealias BndSpec NTuple{2, Bool}
                                                    for n in 1:rank]...))
               $(Expr(:meta, :inline, :propagate_inbounds))
               idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-              @inbounds val = arr.data[idx + 1]
+              @inbounds val = arr.data[idx.i]
               val
             end))
 
@@ -534,7 +582,7 @@ typealias BndSpec NTuple{2, Bool}
                                                        for n in 1:rank]...))
                   $(Expr(:meta, :inline, :propagate_inbounds))
                   idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-                  $typenameparams(nothing, setindex(arr.data, val, idx + 1))
+                  $typenameparams(nothing, setindex(arr.data, val, idx.i))
                 end))
     else
         push!(decls,
@@ -544,7 +592,7 @@ typealias BndSpec NTuple{2, Bool}
                                                         for n in 1:rank]...))
                   $(Expr(:meta, :inline, :propagate_inbounds))
                   idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-                  @inbounds arr.data[idx + 1] = val
+                  @inbounds arr.data[idx.i] = val
                   val
                 end))
     end
@@ -553,7 +601,7 @@ typealias BndSpec NTuple{2, Bool}
           :(function getindex{$(typeparams...)}(arr::$typenameparams,
                                                 inds::CartesianIndex{$rank})
               $(Expr(:meta, :inline, :propagate_inbounds))
-              getindex(arr, $([:(inds[$i]) for i in 1:rank]...))
+              arr[$([:(inds[$i]) for i in 1:rank]...)]
             end))
 
     if isimmutable
@@ -568,7 +616,7 @@ typealias BndSpec NTuple{2, Bool}
               :(function setindex!{$(typeparams...)}(arr::$typenameparams, val,
                                                      inds::CartesianIndex{$rank})
                   $(Expr(:meta, :inline, :propagate_inbounds))
-                  setindex!(arr, val, $([:(inds[$i]) for i in 1:rank]...))
+                  arr[$([:(inds[$i]) for i in 1:rank]...)] = val
                 end))
     end
 
@@ -681,8 +729,6 @@ end
 
 
 # Functor, Applicative Functor
-
-# TODO: use @boundscheck
 
 import Base: map
 
