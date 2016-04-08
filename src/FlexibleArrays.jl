@@ -53,6 +53,8 @@ end
     :(tuple($([:(size(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
 
+# TODO: beginof, endof
+
 export LinearIndex
 immutable LinearIndex
     i::Int
@@ -63,7 +65,10 @@ eachindex(arr::AbstractFlexArray) =
 
 start(arr::AbstractFlexArray) = start(eachindex(arr))
 done(arr::AbstractFlexArray, i) = done(eachindex(arr), i)
-next(arr::AbstractFlexArray, i) = arr[i], next(eachindex(arr), i)[2]
+function next(arr::AbstractFlexArray, i)
+    ind, inew = next(eachindex(arr), i)
+    arr[ind], inew
+end
 
 similar{T,N}(arr::AbstractFlexArray{T,N}, dims::NTuple{N,Int}) =
     similar(arr, T, dims)
@@ -147,6 +152,8 @@ setindex{N,T}(t::NTuple{N,T}, val, i::Integer) = setindex(t, val, Int(i))
 
 
 import Base: call, checkbounds, getindex, length, setindex!
+# TODO: implement ind2sub, sub2ind
+# TODO: tell Base that we are LinearFast?
 export linearindex, setindex
 
 
@@ -721,6 +728,8 @@ export ImmutableArray
     quote
         $(Expr(:meta, :inline))
         arrtype = genFlexArray(Val{true}, dimspecs...)
+        # TODO: allow flexible lower bounds as well, if the total size
+        # is fixed
         len = *(1, $(sz...))
         arrtype{$(dims...), len}
     end

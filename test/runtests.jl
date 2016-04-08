@@ -194,6 +194,12 @@ for k in 0:9, j in 0:9, i in 0:9
 end
 @test s == 2000
 
+@test collect(arr0) == [42]
+@test collect(arr1_fix) == [43, 44, 45, 46, 47, 48, 49, 50, 51, 52]
+@test length(collect(arr1_gen)) == 10
+@test length(collect(arr3)) == length(arr3)
+@test length(collect(a4)) == length(a4)
+
 # 10D arrays
 typealias BinArr10d FlexArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 a10b = BinArr10d{Complex128}(:,:,:,:,:,:,:,:,:,:)
@@ -231,10 +237,18 @@ end
 typealias I0 ImmutableArray()
 i0 = I0{Int}()
 @test sizeof(i0) == sizeof(Int)*2^0
+for i in eachindex(i0)
+    i0 = setindex(i0, 1, i)
+end
+@test sum(i0) == 2^0
 
 typealias I1 ImmutableArray(0:1)
 i1 = I1{Int}(:)
 @test sizeof(i1) == sizeof(Int)*2^1
+for i in eachindex(i1)
+    i1 = setindex(i1, 1, i)
+end
+@test sum(i1) == 2^1
 
 typealias I2 ImmutableArray(0:1, 0:1)
 i2 = I2{Int}(:,:)
@@ -247,6 +261,11 @@ end
 typealias I10 ImmutableArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 i10 = I10{Int}(:,:,:,:,:,:,:,:,:,:)
 @test sizeof(i10) == sizeof(Int)*2^10
+
+@test collect(i0) == [1]
+@test collect(i1) == [1, 1]
+@test collect(i2) == [1, 1, 1, 1]
+@test length(collect(i10)) == length(i10)
 
 # Functor, Applicative Functor
 
