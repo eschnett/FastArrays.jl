@@ -1,55 +1,55 @@
-module FlexibleArrays
+module FastArrays
 
 # using Base.Cartesian
 
-export AbstractFlexArray
-export AbstractImmutableFlexArray, AbstractMutableFlexArray
-abstract AbstractFlexArray{T,N} <: DenseArray{T,N}
-abstract AbstractImmutableFlexArray{T,N} <: AbstractFlexArray{T,N}
-abstract AbstractMutableFlexArray{T,N} <: AbstractFlexArray{T,N}
+export AbstractFastArray
+export AbstractImmutableFastArray, AbstractMutableFastArray
+abstract AbstractFastArray{T,N} <: DenseArray{T,N}
+abstract AbstractImmutableFastArray{T,N} <: AbstractFastArray{T,N}
+abstract AbstractMutableFastArray{T,N} <: AbstractFastArray{T,N}
 
 # eltype, ndims are provided by DenseArray
 
 export lbnd, ubnd
 import Base: done, eachindex, next, similar, size, start
 
-size{n}(arr::AbstractFlexArray, ::Type{Val{n}}) =
+size{n}(arr::AbstractFastArray, ::Type{Val{n}}) =
     max(0, ubnd(arr, Val{n}) - lbnd(arr, Val{n}) + 1)
-size{T <: AbstractFlexArray, n}(arr::Type{T}, ::Type{Val{n}}) =
+size{T <: AbstractFastArray, n}(arr::Type{T}, ::Type{Val{n}}) =
     max(0, ubnd(T, Val{n}) - lbnd(T, Val{n}) + 1)
 
-lbnd(arr::AbstractFlexArray, n::Int) = lbnd(arr, Val{n})
-ubnd(arr::AbstractFlexArray, n::Int) = ubnd(arr, Val{n})
-size(arr::AbstractFlexArray, n::Int) = size(arr, Val{n})
+lbnd(arr::AbstractFastArray, n::Int) = lbnd(arr, Val{n})
+ubnd(arr::AbstractFastArray, n::Int) = ubnd(arr, Val{n})
+size(arr::AbstractFastArray, n::Int) = size(arr, Val{n})
 
-lbnd{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = lbnd(T, Val{n})
-ubnd{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = ubnd(T, Val{n})
-size{T <: AbstractFlexArray}(arr::Type{T}, n::Int) = size(T, Val{n})
+lbnd{T <: AbstractFastArray}(arr::Type{T}, n::Int) = lbnd(T, Val{n})
+ubnd{T <: AbstractFastArray}(arr::Type{T}, n::Int) = ubnd(T, Val{n})
+size{T <: AbstractFastArray}(arr::Type{T}, n::Int) = size(T, Val{n})
 
 # Note: Use ntuple instead of generated functions once the closure in
 # ntuple is efficient
-# lbnd{T,N}(arr::AbstractFlexArray{T,N}) = ntuple(n->lbnd(arr, Val{n}), N)
-@generated function lbnd(arr::AbstractFlexArray)
+# lbnd{T,N}(arr::AbstractFastArray{T,N}) = ntuple(n->lbnd(arr, Val{n}), N)
+@generated function lbnd(arr::AbstractFastArray)
     :(tuple($([:(lbnd(arr, Val{$n})) for n in 1:ndims(arr)]...)))
 end
 # The Base.Cartesian macros expect literals, not parameters
-# function lbnd{T,N}(arr::AbstractFlexArray{T,N})
+# function lbnd{T,N}(arr::AbstractFastArray{T,N})
 #     @ntuple N n->lbnd(arr, Val{n})
 # end
-@generated function ubnd(arr::AbstractFlexArray)
+@generated function ubnd(arr::AbstractFastArray)
     :(tuple($([:(ubnd(arr, Val{$n})) for n in 1:ndims(arr)]...)))
 end
-@generated function size(arr::AbstractFlexArray)
+@generated function size(arr::AbstractFastArray)
     :(tuple($([:(size(arr, Val{$n})) for n in 1:ndims(arr)]...)))
 end
 
-@generated function lbnd{T <: AbstractFlexArray}(::Type{T})
+@generated function lbnd{T <: AbstractFastArray}(::Type{T})
     :(tuple($([:(lbnd(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
-@generated function ubnd{T <: AbstractFlexArray}(::Type{T})
+@generated function ubnd{T <: AbstractFastArray}(::Type{T})
     :(tuple($([:(ubnd(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
-@generated function size{T <: AbstractFlexArray}(::Type{T})
+@generated function size{T <: AbstractFastArray}(::Type{T})
     :(tuple($([:(size(T, Val{$n})) for n in 1:ndims(T)]...)))
 end
 
@@ -60,23 +60,23 @@ immutable LinearIndex
     i::Int
 end
 
-eachindex(arr::AbstractFlexArray) =
+eachindex(arr::AbstractFastArray) =
     CartesianRange(CartesianIndex(lbnd(arr)), CartesianIndex(ubnd(arr)))
 
-start(arr::AbstractFlexArray) = start(eachindex(arr))
-done(arr::AbstractFlexArray, i) = done(eachindex(arr), i)
-function next(arr::AbstractFlexArray, i)
+start(arr::AbstractFastArray) = start(eachindex(arr))
+done(arr::AbstractFastArray, i) = done(eachindex(arr), i)
+function next(arr::AbstractFastArray, i)
     ind, inew = next(eachindex(arr), i)
     arr[ind], inew
 end
 
-similar{T,N}(arr::AbstractFlexArray{T,N}, dims::NTuple{N,Int}) =
+similar{T,N}(arr::AbstractFastArray{T,N}, dims::NTuple{N,Int}) =
     similar(arr, T, dims)
 
 
 
 import Base: show
-@generated function show(io::IO, arr::AbstractFlexArray)
+@generated function show(io::IO, arr::AbstractFastArray)
     inds = [symbol(:i,n) for n in 1:ndims(arr)]
     stmt = :(print(io, arr[$(inds...)], " "))
     for n in ndims(arr):-1:1
@@ -90,7 +90,7 @@ import Base: show
     end
     stmt
 end
-# function show{T,N}(io::IO, arr::AbstractFlexArray{T,N})
+# function show{T,N}(io::IO, arr::AbstractFastArray{T,N})
 #     bnds(n) = lbnd(arr,n):ubnd(arr,n)
 #     pre(n) = print(io, "[")
 #     post(n) = print(io, "[")
@@ -105,7 +105,7 @@ end
 # function.
 if VERSION < v"0.5.0-"
     # Julia v0.4
-    function Base.print_matrix(io::IO, X::AbstractFlexArray,
+    function Base.print_matrix(io::IO, X::AbstractFastArray,
                                sz::Tuple{Integer, Integer} = (s = tty_size(); (s[1]-4, s[2])),
                                pre::AbstractString = " ",
                                sep::AbstractString = "  ",
@@ -118,7 +118,7 @@ if VERSION < v"0.5.0-"
     end
 else
     # Julia v0.5
-    function Base.print_matrix(io::IO, X::AbstractFlexArray,
+    function Base.print_matrix(io::IO, X::AbstractFastArray,
                                pre::AbstractString = " ", # pre-matrix string
                                sep::AbstractString = "  ", # separator between elements
                                post::AbstractString = "", # post-matrix string
@@ -160,7 +160,7 @@ export linearindex, setindex
 
 typealias BndSpec NTuple{2, Bool}
 
-@generated function genFlexArray{I,T}(::Type{Val{I}}, ::Type{Val{T}})
+@generated function genFastArray{I,T}(::Type{Val{I}}, ::Type{Val{T}})
     @assert isa(T, Tuple)
     N = length(T)
     @assert isa(T, NTuple{N, BndSpec})
@@ -193,9 +193,9 @@ typealias BndSpec NTuple{2, Bool}
 
     # Type declaration
 
-    # typename = gensym(:FlexArray)
+    # typename = gensym(:FastArray)
     typename = let
-        names = ["FlexArrayImpl_"]
+        names = ["FastArrayImpl_"]
         push!(names, isimmutable ? "I" : "T")
         for n in 1:rank
             push!(names, string(Int(fixed_lbnd[n])))
@@ -207,7 +207,7 @@ typealias BndSpec NTuple{2, Bool}
     # Sometimes, e.g. when running tests with "coverage=true",
     # generated functions are generated multiple times. Catch this
     # early to avoid defining the implementation type multiple times.
-    isdefined(FlexibleArrays, typename) && return typename
+    isdefined(FastArrays, typename) && return typename
 
     typeparams = []
     for n in 1:rank
@@ -290,9 +290,9 @@ typealias BndSpec NTuple{2, Bool}
         end
         let
             if isimmutable
-                stype = :AbstractImmutableFlexArray
+                stype = :AbstractImmutableFastArray
             else
-                stype = :AbstractMutableFlexArray
+                stype = :AbstractMutableFastArray
             end
             push!(decls,
                 :(type $typenameparams <: $stype{T,$rank}
@@ -634,7 +634,7 @@ end
 
 
 
-@generated function genFlexArray{I}(::Type{Val{I}}, dimspecs...)
+@generated function genFastArray{I}(::Type{Val{I}}, dimspecs...)
     @assert isa(I, Bool)
     @assert isa(dimspecs, Tuple)
     isimmutable = I
@@ -658,13 +658,13 @@ end
             throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
         end
     end
-    :(genFlexArray(Val{I}, Val{$bndspec}))
+    :(genFastArray(Val{I}, Val{$bndspec}))
 end
 
 
 
-export FlexArray
-@generated function FlexArray(dimspecs...)
+export FastArray
+@generated function FastArray(dimspecs...)
     @assert isa(dimspecs, Tuple)
     rank = length(dimspecs)
     dims = []
@@ -690,7 +690,7 @@ export FlexArray
     end
     quote
         $(Expr(:meta, :inline))
-        arrtype = genFlexArray(Val{false}, dimspecs...)
+        arrtype = genFastArray(Val{false}, dimspecs...)
         arrtype{$(dims...)}
     end
 end
@@ -727,7 +727,7 @@ export ImmutableArray
     end
     quote
         $(Expr(:meta, :inline))
-        arrtype = genFlexArray(Val{true}, dimspecs...)
+        arrtype = genFastArray(Val{true}, dimspecs...)
         # TODO: allow flexible lower bounds as well, if the total size
         # is fixed
         len = *(1, $(sz...))
@@ -752,8 +752,8 @@ import Base: map
     end
 end
 
-@generated function map_kernel!{R,T,N}(f, res::AbstractImmutableFlexArray{R,N},
-                                       arr::AbstractImmutableFlexArray{T,N},
+@generated function map_kernel!{R,T,N}(f, res::AbstractImmutableFastArray{R,N},
+                                       arr::AbstractImmutableFastArray{T,N},
                                        others...)
     nothers = length(others)
     quote
@@ -765,8 +765,8 @@ end
     end
 end
 
-@generated function map_kernel!{R,T,N}(f, res::AbstractMutableFlexArray{R,N},
-                                       arr::AbstractMutableFlexArray{T,N},
+@generated function map_kernel!{R,T,N}(f, res::AbstractMutableFastArray{R,N},
+                                       arr::AbstractMutableFastArray{T,N},
                                        others...)
     nothers = length(others)
     quote
@@ -777,7 +777,7 @@ end
     end
 end
 
-@generated function map(f, arr::AbstractFlexArray, others...)
+@generated function map(f, arr::AbstractFastArray, others...)
     nothers = length(others)
     quote
         $(Expr(:boundscheck, true))
@@ -800,7 +800,7 @@ end
 
 import Base: mapreduce, reduce
 
-@generated function mapreduce_kernel(f, op, v0, arr::AbstractFlexArray,
+@generated function mapreduce_kernel(f, op, v0, arr::AbstractFastArray,
                                      others...)
     nothers = length(others)
     quote
@@ -813,7 +813,7 @@ import Base: mapreduce, reduce
     end
 end
 
-@generated function mapreduce(f, op, v0, arr::AbstractFlexArray, others...)
+@generated function mapreduce(f, op, v0, arr::AbstractFastArray, others...)
     nothers = length(others)
     quote
         $(Expr(:boundscheck, true))
@@ -824,7 +824,7 @@ end
     end
 end
 
-@generated function reduce(op, v0, arr::AbstractFlexArray, others...)
+@generated function reduce(op, v0, arr::AbstractFastArray, others...)
     nothers = length(others)
     quote
         mapreduce(identity, op, v0, arr,

@@ -1,46 +1,46 @@
-using FlexibleArrays
+using FastArrays
 using Base.Test
 
-FlexArray()
+FastArray()
 
-FlexArray(1:10)
-FlexArray(1)
-FlexArray(:)
+FastArray(1:10)
+FastArray(1)
+FastArray(:)
 
-FlexArray(1:10,1:10)
-FlexArray(1:10,1)
-FlexArray(1:10,:)
-FlexArray(1,1:10)
-FlexArray(1,1)
-FlexArray(1,:)
-FlexArray(:,1:10)
-FlexArray(:,1)
-FlexArray(:,:)
+FastArray(1:10,1:10)
+FastArray(1:10,1)
+FastArray(1:10,:)
+FastArray(1,1:10)
+FastArray(1,1)
+FastArray(1,:)
+FastArray(:,1:10)
+FastArray(:,1)
+FastArray(:,:)
 
-FlexArray(){Int}(nothing)
-FlexArray(){Int}()
+FastArray(){Int}(nothing)
+FastArray(){Int}()
 
-FlexArray(1:10){Int}(nothing)
-FlexArray(1){Int}(nothing, 10)
-FlexArray(:){Int}(nothing, 1, 10)
-FlexArray(1:10){Int}(:)
-FlexArray(1){Int}(10)
-FlexArray(:){Int}(1:10)
+FastArray(1:10){Int}(nothing)
+FastArray(1){Int}(nothing, 10)
+FastArray(:){Int}(nothing, 1, 10)
+FastArray(1:10){Int}(:)
+FastArray(1){Int}(10)
+FastArray(:){Int}(1:10)
 
-FlexArray(1:10,1:10){Int}(:,:)
-FlexArray(1:10,1){Int}(:,10)
-FlexArray(1:10,:){Int}(:,1:10)
-FlexArray(1,1:10){Int}(10,:)
-FlexArray(1,1){Int}(10,10)
-FlexArray(1,:){Int}(10,1:10)
-FlexArray(:,1:10){Int}(1:10,:)
-FlexArray(:,1){Int}(1:10,10)
-FlexArray(:,:){Int}(1:10,1:10)
+FastArray(1:10,1:10){Int}(:,:)
+FastArray(1:10,1){Int}(:,10)
+FastArray(1:10,:){Int}(:,1:10)
+FastArray(1,1:10){Int}(10,:)
+FastArray(1,1){Int}(10,10)
+FastArray(1,:){Int}(10,1:10)
+FastArray(:,1:10){Int}(1:10,:)
+FastArray(:,1){Int}(1:10,10)
+FastArray(:,:){Int}(1:10,1:10)
 
 # 0D
 
-Arr0 = FlexArray(){Float64}
-Arr0b = FlexArray(){Int}
+Arr0 = FastArray(){Float64}
+Arr0b = FastArray(){Int}
 @test eltype(Arr0) === Float64
 @test ndims(Arr0) === 0
 @test length(Arr0) === 1
@@ -62,7 +62,7 @@ arr0[] = 42
 
 # 1D
 
-Arr1_fix = FlexArray(1:10){Float64}
+Arr1_fix = FastArray(1:10){Float64}
 @test eltype(Arr1_fix) === Float64
 @test length(Arr1_fix) === 10
 @test lbnd(Arr1_fix, 1) === 1
@@ -85,7 +85,7 @@ end
 @test string(arr1_fix) ==
     "[43.0 44.0 45.0 46.0 47.0 48.0 49.0 50.0 51.0 52.0 ]\n"
 
-Arr1_lb = FlexArray(1){Float64}
+Arr1_lb = FastArray(1){Float64}
 @test eltype(Arr1_lb) === Float64
 @test lbnd(Arr1_fix, 1) === 1
 arr1_lb = Arr1_lb(10)
@@ -95,7 +95,7 @@ arr1_lb = Arr1_lb(10)
 @test ubnd(arr1_lb, 1) === 10
 @test size(arr1_lb, 1) === 10
 
-Arr1_gen = FlexArray(:){Float64}
+Arr1_gen = FastArray(:){Float64}
 @test eltype(Arr1_gen) === Float64
 arr1_gen = Arr1_gen(1:10)
 @test eltype(arr1_gen) === Float64
@@ -110,7 +110,7 @@ na = nothing
 for bnds1 in [(1,10), (na,10), (1,na), (na,na)],
     bnds2 in [(0,11), (na,11), (0,na), (na,na)]
 
-    Arr2 = FlexArray(bnds1, bnds2){Float64}
+    Arr2 = FastArray(bnds1, bnds2){Float64}
     @test eltype(Arr2) === Float64
     if bnds1[1]!==na && bnds1[2]!==na && bnds2[1]!==na && bnds2[2]!==na
         @test length(Arr2) === 120
@@ -141,32 +141,32 @@ for bnds1 in [(1,10), (na,10), (1,na), (na,na)],
     @test size(arr2, 2) === 12
 end
 
-Arr3 = FlexArray(0:3, 0, 0){Int}
+Arr3 = FastArray(0:3, 0, 0){Int}
 arr3 = Arr3(:,4,5)
 
 # Test the examples given in the README
 
 # A (10x10) fixed-size array
-typealias Arr2d_10x10 FlexArray(1:10, 1:10)
+typealias Arr2d_10x10 FastArray(1:10, 1:10)
 a2 = Arr2d_10x10{Float64}(:,:)
 
 # A 3d array with lower index bounds 0
-typealias Arr3d_lb0 FlexArray(0, 0, 0)
+typealias Arr3d_lb0 FastArray(0, 0, 0)
 a3 = Arr3d_lb0{Float64}(9, 9, 9)
 
 # A generic array, all bounds determined at creation time
-typealias Arr4d_generic FlexArray(:, :, :, :)
+typealias Arr4d_generic FastArray(:, :, :, :)
 a4 = Arr4d_generic{Float64}(1:10, 0:10, -1:10, 15:15)
 
 # These can be mixed: A (2x10) array
-FlexArray(0:1, 1){Float64}(:, 10)
+FastArray(0:1, 1){Float64}(:, 10)
 
 # Arrays can also be empty:
-FlexArray(4:13, 10:9)
-FlexArray(:){Int}(5:0)
+FastArray(4:13, 10:9)
+FastArray(:){Int}(5:0)
 
 # The trivial 0d array, always holding one scalar value:
-FlexArray(){Int}
+FastArray(){Int}
 
 # Cartesian iteration
 for i in eachindex(a3)
@@ -201,7 +201,7 @@ end
 @test length(collect(a4)) == length(a4)
 
 # 10D arrays
-typealias BinArr10d FlexArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
+typealias BinArr10d FastArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 a10b = BinArr10d{Complex128}(:,:,:,:,:,:,:,:,:,:)
 @test length(a10b) == 2^10
 for i in eachindex(a10b)
@@ -209,7 +209,7 @@ for i in eachindex(a10b)
 end
 @test sum(a10b) == 2^10
 
-typealias Arr10d FlexArray(:,:,:,:,:,:,:,:,:,:)
+typealias Arr10d FastArray(:,:,:,:,:,:,:,:,:,:)
 a10 = Arr10d{Complex128}(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 @test length(a10) == 2^10
 for i in eachindex(a10b)
@@ -289,7 +289,7 @@ qi2 = map((x,y) -> y+1.0, i2, ri2)
 
 # A real-world example
 
-typealias Box FlexArray(0:9, 0){Int}
+typealias Box FastArray(0:9, 0){Int}
 
 function init()
     b = Box(:, 19)
