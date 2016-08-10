@@ -161,14 +161,8 @@ export linearindex, setindex
 
 typealias BndSpec NTuple{2, Bool}
 
-@generated function genFastArray{I,T}(::Type{Val{I}}, ::Type{Val{T}})
-    @assert isa(T, Tuple)
-    N = length(T)
-    @assert isa(T, NTuple{N, BndSpec})
-
-    isimmutable = I
-    rank = N
-    bndspecs = T
+function genFastArray(isimmutable::Bool, bndspecs::Vector{BndSpec})
+    rank = length(bndspecs)
 
     fixed_lbnd = Bool[bndspecs[n][1] for n in 1:rank]
     fixed_ubnd = Bool[bndspecs[n][2] for n in 1:rank]
@@ -194,7 +188,6 @@ typealias BndSpec NTuple{2, Bool}
 
     # Type declaration
 
-    # typename = gensym(:FastArray)
     typename = let
         names = ["FastArrayImpl_"]
         push!(names, isimmutable ? "I" : "T")
@@ -205,10 +198,8 @@ typealias BndSpec NTuple{2, Bool}
         Symbol(names...)
     end
 
-    # Sometimes, e.g. when running tests with "coverage=true",
-    # generated functions are generated multiple times. Catch this
-    # early to avoid defining the implementation type multiple times.
-    isdefined(FastArrays, typename) && return typename
+    # If the type is already defined then we are done
+    isdefined(FastArrays, typename) && return eval(typename)
 
     typeparams = []
     for n in 1:rank
@@ -637,110 +628,85 @@ typealias BndSpec NTuple{2, Bool}
 
     eval(quote $(decls...) end)
 
-    typename
-end
-
-
-
-@generated function genFastArray{I}(::Type{Val{I}}, dimspecs...)
-    @assert isa(I, Bool)
-    @assert isa(dimspecs, Tuple)
-    isimmutable = I
-    rank = length(dimspecs)
-    bndspec = ntuple(rank) do n
-        dimspec = dimspecs[n]
-        if dimspec <: Union{Colon, Tuple{Void, Void}}
-            (false, false)
-        elseif dimspec <: Union{Integer, Tuple{Integer, Void}}
-            (true, false)
-        elseif dimspec <: Union{UnitRange, Tuple{Integer, Integer}}
-            (true, true)
-        elseif dimspec <: Tuple{Void, Integer}
-            (false, true)
-        else
-            @assert false
-        end
-    end
-    if isimmutable
-        if !all(bs -> bs === (true,true), bndspec)
-            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
-        end
-    end
-    :(genFastArray(Val{I}, Val{$bndspec}))
+    eval(typename)::Type
 end
 
 
 
 export FastArray
-@generated function FastArray(dimspecs...)
-    @assert isa(dimspecs, Tuple)
+function FastArray(dimspecs...)
     rank = length(dimspecs)
-    dims = []
+    bnds = BndSpec[]
+    dims = Int[]
     for n in 1:rank
         dimspec = dimspecs[n]
-        if dimspec <: Colon || dimspec <: Tuple{Void, Void}
-            # do nothing
-        elseif dimspec <: Integer
-            push!(dims, :(Int(dimspecs[$n])))
-        elseif dimspec <: Tuple{Integer, Void}
-            push!(dims, :(Int(dimspecs[$n][1])))
-        elseif dimspec <: UnitRange
-            push!(dims, :(Int(dimspecs[$n].start)))
-            push!(dims, :(Int(dimspecs[$n].stop)))
-        elseif dimspec <: Tuple{Integer, Integer}
-            push!(dims, :(Int(dimspecs[$n][1])))
-            push!(dims, :(Int(dimspecs[$n][2])))
-        elseif dimspec <: Tuple{Void, Integer}
-            push!(dims, :(Int(dimspecs[$n][2])))
+        if isa(dimspec, Colon) || isa(dimspec, Tuple{Void, Void})
+            push!(bnds, (false,false))
+        elseif isa(dimspec, Integer)
+            push!(bnds, (true,false))
+            push!(dims, Int(dimspec))
+        elseif isa(dimspec, Tuple{Integer, Void})
+            push!(bnds, (true,false))
+            push!(dims, Int(dimspec[1]))
+        elseif isa(dimspec, UnitRange)
+            push!(bnds, (true,true))
+            push!(dims, Int(dimspec.start))
+            push!(dims, Int(dimspec.stop))
+        elseif isa(dimspec, Tuple{Integer, Integer})
+            push!(bnds, (true,true))
+            push!(dims, Int(dimspec[1]))
+            push!(dims, Int(dimspec[2]))
+        elseif isa(dimspec, Tuple{Void, Integer})
+            push!(bnds, (false,true))
+            push!(dims, Int(dimspec[2]))
         else
             @assert false
         end
     end
-    quote
-        $(Expr(:meta, :inline))
-        arrtype = genFastArray(Val{false}, dimspecs...)
-        arrtype{$(dims...)}
-    end
+    arrtype = genFastArray(false, bnds)
+    arrtype{dims...}
 end
 
 export ImmutableArray
-@generated function ImmutableArray(dimspecs...)
-    @assert isa(dimspecs, Tuple)
+function ImmutableArray(dimspecs...)
     rank = length(dimspecs)
-    dims = []
-    sz = []
+    bnds = BndSpec[]
+    dims = Int[]
+    len = 1
     for n in 1:rank
         dimspec = dimspecs[n]
-        if dimspec <: Colon || dimspec <: Tuple{Void, Void}
-            # do nothing
-        elseif dimspec <: Integer
-            push!(dims, :(Int(dimspecs[$n])))
-        elseif dimspec <: Tuple{Integer, Void}
-            push!(dims, :(Int(dimspecs[$n][1])))
-        elseif dimspec <: UnitRange
-            push!(dims, :(Int(dimspecs[$n].start)))
-            push!(dims, :(Int(dimspecs[$n].stop)))
-            push!(sz, :(max(0, (Int(dimspecs[$n].stop) -
-                                Int(dimspecs[$n].start) + 1))))
-        elseif dimspec <: Tuple{Integer, Integer}
-            push!(dims, :(Int(dimspecs[$n][1])))
-            push!(dims, :(Int(dimspecs[$n][2])))
-            push!(sz, :(max(0, (Int(dimspecs[$n][2]) -
-                                Int(dimspecs[$n][1]) + 1))))
-        elseif dimspec <: Tuple{Void, Integer}
-            push!(dims, :(Int(dimspecs[$n][2])))
+        if isa(dimspec, Colon) || isa(dimspec, Tuple{Void, Void})
+            push!(bnds, (false,false))
+            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
+        elseif isa(dimspec, Integer)
+            push!(bnds, (true,false))
+            push!(dims, Int(dimspec))
+            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
+        elseif isa(dimspec, Tuple{Integer, Void})
+            push!(bnds, (true,false))
+            push!(dims, Int(dimspec[1]))
+            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
+        elseif isa(dimspec, UnitRange)
+            push!(bnds, (true,true))
+            push!(dims, Int(dimspec.start))
+            push!(dims, Int(dimspec.stop))
+            len *= max(0, Int(dimspec.stop) - Int(dimspec.start) + 1)
+        elseif isa(dimspec, Tuple{Integer, Integer})
+            push!(bnds, (true,true))
+            push!(dims, Int(dimspec[1]))
+            push!(dims, Int(dimspec[2]))
+            len *= max(0, Int(dimspec[2]) - Int(dimspec[1]) + 1)
+        elseif isa(dimspec, Tuple{Void, Integer})
+            push!(bnds, (false,true))
+            push!(dims, Int(dimspec[2]))
+            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
         else
             @assert false
         end
     end
-    quote
-        $(Expr(:meta, :inline))
-        arrtype = genFastArray(Val{true}, dimspecs...)
-        # TODO: allow flexible lower bounds as well, if the total size
-        # is fixed
-        len = *(1, $(sz...))
-        arrtype{$(dims...), len}
-    end
+    arrtype = genFastArray(true, bnds)
+    # TODO: allow flexible lower bounds as well, if the total size is fixed
+    arrtype{dims..., len}
 end
 
 
