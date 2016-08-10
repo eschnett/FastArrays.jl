@@ -4,12 +4,14 @@ os:
   - linux
   - osx
 julia:
-  - release
+  - 0.4
+  - 0.5-
+  # - release
   - nightly
 notifications:
   email: false
 script:
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-  - julia -e 'Pkg.clone(pwd()); Pkg.build("FlexibleArrays"); Pkg.test("FlexibleArrays"; coverage=true)'
+  - julia -e 'Pkg.clone(pwd()); Pkg.build("FastArrays"); Pkg.test("FastArrays"; coverage=true)'
 after_success:
-  - julia -e 'cd(Pkg.dir("FlexibleArrays")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
+  - julia -e 'cd(Pkg.dir("FastArrays")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
