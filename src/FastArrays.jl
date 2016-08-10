@@ -1,6 +1,7 @@
 module FastArrays
 
 # using Base.Cartesian
+using Compat
 
 export AbstractFastArray
 export AbstractImmutableFastArray, AbstractMutableFastArray
@@ -77,12 +78,12 @@ similar{T,N}(arr::AbstractFastArray{T,N}, dims::NTuple{N,Int}) =
 
 import Base: show
 @generated function show(io::IO, arr::AbstractFastArray)
-    inds = [symbol(:i,n) for n in 1:ndims(arr)]
+    inds = [@compat Symbol(:i,n) for n in 1:ndims(arr)]
     stmt = :(print(io, arr[$(inds...)], " "))
     for n in ndims(arr):-1:1
         stmt = quote
             print(io, "[")
-            for $(symbol(:i,n)) in lbnd(arr,$n):ubnd(arr,$n)
+            for $(@compat Symbol(:i,n)) in lbnd(arr,$n):ubnd(arr,$n)
                 $stmt
             end
             println(io, "]")
@@ -185,9 +186,9 @@ typealias BndSpec NTuple{2, Bool}
                  fixed_offset && fixed_length)
     end
 
-    lbnd = [symbol(:lbnd,n) for n in 1:rank]
-    ubnd = [symbol(:ubnd,n) for n in 1:rank]
-    stride = [symbol(:stride,n) for n in 1:rank+1]
+    lbnd = [@compat Symbol(:lbnd,n) for n in 1:rank]
+    ubnd = [@compat Symbol(:ubnd,n) for n in 1:rank]
+    stride = [@compat Symbol(:stride,n) for n in 1:rank+1]
 
     decls = []
 
@@ -201,7 +202,7 @@ typealias BndSpec NTuple{2, Bool}
             push!(names, string(Int(fixed_lbnd[n])))
             push!(names, string(Int(fixed_ubnd[n])))
         end
-        symbol(names...)
+        @compat Symbol(names...)
     end
 
     # Sometimes, e.g. when running tests with "coverage=true",
@@ -319,9 +320,9 @@ typealias BndSpec NTuple{2, Bool}
                     push!(args, :($(lbnd[n])::Tuple{Integer}))
                     push!(callargs, :($(lbnd[n])[1]))
                 else
-                    push!(args, :($(symbol(:bnds,n))::UnitRange{Int}))
-                    push!(callargs, :($(symbol(:bnds,n)).start))
-                    push!(callargs, :($(symbol(:bnds,n)).stop))
+                    push!(args, :($(@compat Symbol(:bnds,n))::UnitRange{Int}))
+                    push!(callargs, :($(@compat Symbol(:bnds,n)).start))
+                    push!(callargs, :($(@compat Symbol(:bnds,n)).stop))
                 end
             end
         end
@@ -495,23 +496,25 @@ typealias BndSpec NTuple{2, Bool}
     # argument lists are handled efficiently
 
     push!(decls,
-          :(function isinbounds{$(typeparams...)}(arr::$typenameparams,
-                                                  $([:($(symbol(:ind,n))::Int)
-                                                     for n in 1:rank]...))
-              $(Expr(:meta, :inline))
-              (&)(true, $([:(lbnd(arr, Val{$n}) <= $(symbol(:ind,n)) <=
-                             ubnd(arr, Val{$n}))
-                           for n in 1:rank]...))
+          :(function isinbounds{$(typeparams...)}(
+                    arr::$typenameparams,
+                    $([:($(@compat Symbol(:ind,n))::Int) for n in 1:rank]...))
+                $(Expr(:meta, :inline))
+                (&)(true,
+                    $([:(lbnd(arr, Val{$n}) <= $(@compat Symbol(:ind,n)) <=
+                         ubnd(arr, Val{$n}))
+                       for n in 1:rank]...))
             end))
 
     push!(decls,
-          :(function checkbounds{$(typeparams...)}(arr::$typenameparams,
-                                                  $([:($(symbol(:ind,n))::Int)
-                                                     for n in 1:rank]...))
-              if !isinbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
-                  Base.throw_boundserror(arr, tuple($([symbol(:ind,n)
-                                                       for n in 1:rank]...)))
-              end
+          :(function checkbounds{$(typeparams...)}(
+                    arr::$typenameparams,
+                    $([:($(@compat Symbol(:ind,n))::Int) for n in 1:rank]...))
+                if !isinbounds(arr,
+                               $([@compat Symbol(:ind,n) for n in 1:rank]...))
+                    Base.throw_boundserror(arr, tuple($([@compat Symbol(:ind,n)
+                                                         for n in 1:rank]...)))
+                end
             end))
 
     push!(decls,
@@ -523,17 +526,18 @@ typealias BndSpec NTuple{2, Bool}
             end))
 
     push!(decls,
-          :(function linearindex{$(typeparams...)}(arr::$typenameparams,
-                                                   $([:($(symbol(:ind,n))::Int)
-                                                      for n in 1:rank]...))
-              $(Expr(:meta, :inline, :propagate_inbounds))
-              # The @boundscheck macro does not exist in Julia 0.4
-              $(Expr(:boundscheck, true))
-              checkbounds(arr, $([symbol(:ind,n) for n in 1:rank]...))
-              $(Expr(:boundscheck, :pop))
-              LinearIndex(+(0, $([:($(symbol(:ind,n)) * stride(arr, Val{$n}))
-                                  for n in 1:rank]...))
-                          - offset(arr) + 1)
+          :(function linearindex{$(typeparams...)}(
+                    arr::$typenameparams,
+                    $([:($(@compat Symbol(:ind,n))::Int) for n in 1:rank]...))
+                $(Expr(:meta, :inline, :propagate_inbounds))
+                # The @boundscheck macro does not exist in Julia 0.4
+                $(Expr(:boundscheck, true))
+                checkbounds(arr, $([@compat Symbol(:ind,n) for n in 1:rank]...))
+                $(Expr(:boundscheck, :pop))
+                LinearIndex(+(0, $([:($(@compat Symbol(:ind,n)) *
+                                      stride(arr, Val{$n}))
+                                    for n in 1:rank]...))
+                            - offset(arr) + 1)
             end))
 
     push!(decls,
@@ -572,35 +576,38 @@ typealias BndSpec NTuple{2, Bool}
     end
 
     push!(decls,
-          :(function getindex{$(typeparams...)}(arr::$typenameparams,
-                                                $([:($(symbol(:ind,n))::Int)
-                                                   for n in 1:rank]...))
-              $(Expr(:meta, :inline, :propagate_inbounds))
-              idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-              @inbounds val = arr.data[idx.i]
-              val
+          :(function getindex{$(typeparams...)}(
+                    arr::$typenameparams,
+                    $([:($(@compat Symbol(:ind,n))::Int) for n in 1:rank]...))
+                $(Expr(:meta, :inline, :propagate_inbounds))
+                idx = linearindex(arr, $([@compat Symbol(:ind,n)
+                                          for n in 1:rank]...))
+                @inbounds val = arr.data[idx.i]
+                val
             end))
 
     if isimmutable
         push!(decls,
-              :(function setindex{$(typeparams...)}(arr::$typenameparams,
-                                                    val,
-                                                    $([:($(symbol(:ind,n))::Int)
-                                                       for n in 1:rank]...))
-                  $(Expr(:meta, :inline, :propagate_inbounds))
-                  idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-                  $typenameparams(nothing, setindex(arr.data, val, idx.i))
+              :(function setindex{$(typeparams...)}(
+                        arr::$typenameparams, val,
+                        $([:($(@compat Symbol(:ind,n))::Int)
+                           for n in 1:rank]...))
+                    $(Expr(:meta, :inline, :propagate_inbounds))
+                    idx = linearindex(arr, $([@compat Symbol(:ind,n)
+                                              for n in 1:rank]...))
+                    $typenameparams(nothing, setindex(arr.data, val, idx.i))
                 end))
     else
         push!(decls,
-              :(function setindex!{$(typeparams...)}(arr::$typenameparams,
-                                                     val,
-                                                     $([:($(symbol(:ind,n))::Int)
-                                                        for n in 1:rank]...))
-                  $(Expr(:meta, :inline, :propagate_inbounds))
-                  idx = linearindex(arr, $([symbol(:ind,n) for n in 1:rank]...))
-                  @inbounds arr.data[idx.i] = val
-                  val
+              :(function setindex!{$(typeparams...)}(
+                        arr::$typenameparams, val,
+                        $([:($(@compat Symbol(:ind,n))::Int)
+                           for n in 1:rank]...))
+                    $(Expr(:meta, :inline, :propagate_inbounds))
+                    idx = linearindex(arr, $([@compat Symbol(:ind,n)
+                                              for n in 1:rank]...))
+                    @inbounds arr.data[idx.i] = val
+                    val
                 end))
     end
 
@@ -620,10 +627,11 @@ typealias BndSpec NTuple{2, Bool}
                 end))
     else
         push!(decls,
-              :(function setindex!{$(typeparams...)}(arr::$typenameparams, val,
-                                                     inds::CartesianIndex{$rank})
-                  $(Expr(:meta, :inline, :propagate_inbounds))
-                  arr[$([:(inds[$i]) for i in 1:rank]...)] = val
+              :(function setindex!{$(typeparams...)}(
+                        arr::$typenameparams, val,
+                        inds::CartesianIndex{$rank})
+                    $(Expr(:meta, :inline, :propagate_inbounds))
+                    arr[$([:(inds[$i]) for i in 1:rank]...)] = val
                 end))
     end
 
