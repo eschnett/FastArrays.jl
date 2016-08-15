@@ -1,809 +1,421 @@
 module FastArrays
 
 # using Base.Cartesian
-using Compat
+# using Compat
 
 export AbstractFastArray
 export AbstractImmutableFastArray, AbstractMutableFastArray
-abstract AbstractFastArray{T,N} <: DenseArray{T,N}
-abstract AbstractImmutableFastArray{T,N} <: AbstractFastArray{T,N}
-abstract AbstractMutableFastArray{T,N} <: AbstractFastArray{T,N}
-
-# eltype, ndims are provided by DenseArray
-
-export lbnd, ubnd
-import Base: done, eachindex, next, similar, size, start
-
-size{n}(arr::AbstractFastArray, ::Type{Val{n}}) =
-    max(0, ubnd(arr, Val{n}) - lbnd(arr, Val{n}) + 1)
-size{T <: AbstractFastArray, n}(arr::Type{T}, ::Type{Val{n}}) =
-    max(0, ubnd(T, Val{n}) - lbnd(T, Val{n}) + 1)
-
-lbnd(arr::AbstractFastArray, n::Int) = lbnd(arr, Val{n})
-ubnd(arr::AbstractFastArray, n::Int) = ubnd(arr, Val{n})
-size(arr::AbstractFastArray, n::Int) = size(arr, Val{n})
-
-lbnd{T <: AbstractFastArray}(arr::Type{T}, n::Int) = lbnd(T, Val{n})
-ubnd{T <: AbstractFastArray}(arr::Type{T}, n::Int) = ubnd(T, Val{n})
-size{T <: AbstractFastArray}(arr::Type{T}, n::Int) = size(T, Val{n})
-
-# Note: Use ntuple instead of generated functions once the closure in
-# ntuple is efficient
-# lbnd{T,N}(arr::AbstractFastArray{T,N}) = ntuple(n->lbnd(arr, Val{n}), N)
-@generated function lbnd(arr::AbstractFastArray)
-    :(tuple($([:(lbnd(arr, Val{$n})) for n in 1:ndims(arr)]...)))
-end
-# The Base.Cartesian macros expect literals, not parameters
-# function lbnd{T,N}(arr::AbstractFastArray{T,N})
-#     @ntuple N n->lbnd(arr, Val{n})
-# end
-@generated function ubnd(arr::AbstractFastArray)
-    :(tuple($([:(ubnd(arr, Val{$n})) for n in 1:ndims(arr)]...)))
-end
-@generated function size(arr::AbstractFastArray)
-    :(tuple($([:(size(arr, Val{$n})) for n in 1:ndims(arr)]...)))
-end
-
-@generated function lbnd{T <: AbstractFastArray}(::Type{T})
-    :(tuple($([:(lbnd(T, Val{$n})) for n in 1:ndims(T)]...)))
-end
-@generated function ubnd{T <: AbstractFastArray}(::Type{T})
-    :(tuple($([:(ubnd(T, Val{$n})) for n in 1:ndims(T)]...)))
-end
-@generated function size{T <: AbstractFastArray}(::Type{T})
-    :(tuple($([:(size(T, Val{$n})) for n in 1:ndims(T)]...)))
-end
-
-# TODO: beginof, endof
-
-export LinearIndex
-immutable LinearIndex
-    i::Int
-end
-
-eachindex(arr::AbstractFastArray) =
-    CartesianRange(CartesianIndex(lbnd(arr)), CartesianIndex(ubnd(arr)))
-
-start(arr::AbstractFastArray) = start(eachindex(arr))
-done(arr::AbstractFastArray, i) = done(eachindex(arr), i)
-function next(arr::AbstractFastArray, i)
-    ind, inew = next(eachindex(arr), i)
-    arr[ind], inew
-end
-
-similar{T,N}(arr::AbstractFastArray{T,N}, dims::NTuple{N,Int}) =
-    similar(arr, T, dims)
+abstract AbstractFastArray{T, N} <: DenseArray{T, N}
+abstract AbstractImmutableFastArray{T, N} <: AbstractFastArray{T, N}
+abstract AbstractMutableFastArray{T, N} <: AbstractFastArray{T, N}
 
 
 
-import Base: show
-@generated function show(io::IO, arr::AbstractFastArray)
-    inds = [Symbol(:i,n) for n in 1:ndims(arr)]
-    stmt = :(print(io, arr[$(inds...)], " "))
-    for n in ndims(arr):-1:1
-        stmt = quote
-            print(io, "[")
-            for $(Symbol(:i,n)) in lbnd(arr,$n):ubnd(arr,$n)
-                $stmt
+typealias BndSpec Union{UnitRange{Int}, Int, Colon, NTuple{2, Union{Int, Void}}}
+
+immutable MutableFastArrayImpl{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff,
+                               T} <:
+                                   AbstractMutableFastArray{T, N}
+    dynbnds::DynBnds            # bounds (lower, upper)
+    dynstrs::DynStrs            # strides
+    dynlen::DynLen              # length
+    dynoff::DynOff              # offset
+    data::Vector{T}
+
+    function MutableFastArrayImpl(dynbnds::DynBnds)
+        check_invariant(Val{N}, Val{FixedBnds}, DynBnds, DynStrs, DynLen,
+                        DynOff)
+        dynbnds, dynstrs, dynlen, dynoff, length =
+            calc_details(Val{FixedBnds}, DynBnds, DynStrs, DynLen, DynOff,
+                         dynbnds)
+        data = Vector{T}(length)
+        new(dynbnds, dynstrs, dynlen, dynoff, data)
+    end
+
+    @generated function MutableFastArrayImpl(bnds::BndSpec...)
+        @assert nfields(bnds) == N
+        dynbnds = []
+        for i in 1:N
+            bnd = getfield(bnds, i)
+            if bnd === UnitRange{Int}
+                push!(dynbnds, :((bnds[$i].start, bnds[$i].stop)))
+            elseif bnd === Int
+                push!(dynbnds, :((nothing, bnds[$i])))
+            elseif bnd === Colon
+                push!(dynbnds, :((nothing, nothing)))
+            elseif bnd <: NTuple{2, Union{Int, Void}}
+                push!(dynbnds, :((bnds[$i][1], bnds[$i][2])))
+            else
+                @assert false
             end
-            println(io, "]")
+        end
+        dynbnds = :(tuple($(dynbnds...)))
+        quote
+            MutableFastArrayImpl{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff,
+                                 T
+                                 }($dynbnds)
         end
     end
-    stmt
-end
-# function show{T,N}(io::IO, arr::AbstractFastArray{T,N})
-#     bnds(n) = lbnd(arr,n):ubnd(arr,n)
-#     pre(n) = print(io, "[")
-#     post(n) = print(io, "[")
-#     body(n) =
-#     @nloops N i bnds pre post begin
-#         print(io, (@nref N arr i), " ")
-#     end
-# end
-
-# Base.print_matrix assumes that each dimension has a range 1:size.
-# Obviously, this is not going to work, so we replace this output
-# function.
-if VERSION < v"0.5.0-"
-    # Julia v0.4
-    function Base.print_matrix(io::IO, X::AbstractFastArray,
-                               sz::Tuple{Integer, Integer} = (s = tty_size(); (s[1]-4, s[2])),
-                               pre::AbstractString = " ",
-                               sep::AbstractString = "  ",
-                               post::AbstractString = "",
-                               hdots::AbstractString = "  \u2026  ",
-                               vdots::AbstractString = "\u22ee",
-                               ddots::AbstractString = "  \u22f1  ",
-                               hmod::Integer = 5, vmod::Integer = 5)
-        print(io, X)
-    end
-else
-    # Julia v0.5
-    function Base.print_matrix(io::IO, X::AbstractFastArray,
-                               pre::AbstractString = " ", # pre-matrix string
-                               sep::AbstractString = "  ", # separator between elements
-                               post::AbstractString = "", # post-matrix string
-                               hdots::AbstractString = "  \u2026  ",
-                               vdots::AbstractString = "\u22ee",
-                               ddots::AbstractString = "  \u22f1  ",
-                               hmod::Integer = 5, vmod::Integer = 5)
-        print(io, X)
-    end
 end
 
-
-
-@generated function mktuple{N,T}(::Type{Val{N}}, val::T)
-    :(tuple($([:val for i in 1:N]...)))
-end
-
-@generated function setindex{N,T,I}(t::NTuple{N,T}, val, ::Type{Val{I}})
-    :(tuple($([i==I ? :(T(val)) : :(t[$i]) for i in 1:N]...)))
-end
-
-@generated function setindex{N,T}(t::NTuple{N,T}, val, i::Int)
-    N==0 && return :(NTuple{N,T}())
+@generated function check_invariant{N, FixedBnds, DynBnds, DynStrs, DynLen,
+                                    DynOff
+                                    }(::Type{Val{N}}, ::Type{Val{FixedBnds}},
+                                      ::Type{DynBnds}, ::Type{DynStrs},
+                                      ::Type{DynLen}, ::Type{DynOff})
+    inv = invariant(N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff)
     quote
-        $([:(i==$j && return setindex(t, val, Val{$j})) for j in 1:N]...)
-        @assert false
+        @assert $inv
     end
 end
-setindex{N,T}(t::NTuple{N,T}, val, i::Integer) = setindex(t, val, Int(i))
 
-
-
-import Base: call, checkbounds, getindex, length, setindex!
-# TODO: implement ind2sub, sub2ind
-# TODO: tell Base that we are LinearFast?
-export linearindex, setindex
-
-
-
-typealias BndSpec NTuple{2, Bool}
-
-function genFastArray(isimmutable::Bool, bndspecs::Vector{BndSpec})
-    rank = length(bndspecs)
-
-    fixed_lbnd = Bool[bndspecs[n][1] for n in 1:rank]
-    fixed_ubnd = Bool[bndspecs[n][2] for n in 1:rank]
-    fixed_stride = Vector{Bool}(rank+1)
-    fixed_stride[1] = true
-    for n in 2:rank+1
-        fixed_stride[n] =
-            fixed_stride[n-1] && fixed_lbnd[n-1] && fixed_ubnd[n-1]
-    end
-    fixed_length = fixed_stride[rank+1]
-    fixed_offset = rank == 0 || fixed_stride[rank] && fixed_lbnd[rank]
-
-    if isimmutable
-        @assert (all(fixed_lbnd) && all(fixed_ubnd) && all(fixed_stride) &&
-                 fixed_offset && fixed_length)
-    end
-
-    lbnd = [Symbol(:lbnd,n) for n in 1:rank]
-    ubnd = [Symbol(:ubnd,n) for n in 1:rank]
-    stride = [Symbol(:stride,n) for n in 1:rank+1]
-
-    decls = []
-
-    # Type declaration
-
-    typename = let
-        names = ["FastArrayImpl_"]
-        push!(names, isimmutable ? "I" : "T")
-        for n in 1:rank
-            push!(names, string(Int(fixed_lbnd[n])))
-            push!(names, string(Int(fixed_ubnd[n])))
-        end
-        Symbol(names...)
-    end
-
-    # If the type is already defined then we are done
-    isdefined(FastArrays, typename) && return eval(typename)
-
-    typeparams = []
-    for n in 1:rank
-        fixed_lbnd[n] && push!(typeparams, lbnd[n])
-        fixed_ubnd[n] && push!(typeparams, ubnd[n])
-    end
-    if isimmutable
-        push!(typeparams, :L)   # length
-    end
-    push!(typeparams, :T)
-
-    # Type name with parameters
-    typenameparams = :($typename{$(typeparams...)})
-
-    let
-        body = []
-        for n in 1:rank
-            !fixed_lbnd[n] && push!(body, :($(lbnd[n])::Int))
-            !fixed_ubnd[n] && push!(body, :($(ubnd[n])::Int))
-            !fixed_stride[n] && push!(body, :($(stride[n])::Int))
-        end
-        !fixed_length && push!(body, :(length::Int))
-        !fixed_offset && push!(body, :(offset::Int))
-        if isimmutable
-            push!(body, :(data::NTuple{L,T}))
-        else
-            # TODO: use a more low-level array representation
-            push!(body, :(data::Vector{T}))
-        end
-        let
-            args = []
-            # Add a dummy Void argument to ensure that this
-            # constructor is not called accidentally
-            push!(args, :(::Void))
-            for n in 1:rank
-                !fixed_lbnd[n] && push!(args, :($(lbnd[n])::Int))
-                !fixed_ubnd[n] && push!(args, :($(ubnd[n])::Int))
-            end
-            stmts = []
-            push!(stmts, :($(stride[1]) = 1))
-            for n in 2:rank+1
-                push!(stmts,
-                      :($(stride[n]) =
-                        $(stride[n-1]) *
-                        max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1)))
-            end
-            push!(stmts, :(length = $(stride[rank+1])))
-            if !fixed_offset
-                push!(stmts,
-                      :(offset =
-                        +(0, $([:($(stride[n]) * $(lbnd[n]))
-                                for n in 1:rank]...))))
-            end
-            let
-                newargs = []
-                for n in 1:rank
-                    !fixed_lbnd[n] && push!(newargs, lbnd[n])
-                    !fixed_ubnd[n] && push!(newargs, ubnd[n])
-                    !fixed_stride[n] && push!(newargs, stride[n])
-                end
-                !fixed_length && push!(newargs, :length)
-                !fixed_offset && push!(newargs, :offset)
-                if isimmutable
-                    push!(newargs, :(mktuple(Val{L}, zero(T))))
-                else
-                    push!(newargs, :(Vector{T}(length)))
-                end
-                push!(stmts, :(new($(newargs...))))
-            end
-            push!(body,
-                  :(function $typename($(args...))
-                      $(stmts...)
-                    end))
-        end
-        if isimmutable
-            push!(body,
-                  :(function $typename(::Void, data::NTuple{L,T})
-                      new(data)
-                    end))
-        end
-        let
-            if isimmutable
-                stype = :AbstractImmutableFastArray
+function invariant(N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff)
+    isa(N, Int) || (error(); return false)
+    N >= 0 || (error(); return false)
+    isa(FixedBnds, NTuple{N, NTuple{2, Union{Int, Void}}}) ||
+        (error(); return false)
+    DynBnds <: Tuple || (error(); return false)
+    nfields(DynBnds) == N || (error(); return false)
+    for i in 1:N
+        DynBnd = fieldtype(DynBnds, i)
+        DynBnd <: Tuple || (error(); return false)
+        nfields(DynBnd) == 2 || (error(); return false)
+        for f in 1:2
+            if FixedBnds[i][f] !== nothing
+                fieldtype(DynBnd, f) === Void || (error(); return false)
             else
-                stype = :AbstractMutableFastArray
+                fieldtype(DynBnd, f) === Int || (error(); return false)
             end
-            push!(decls,
-                :(type $typenameparams <: $stype{T,$rank}
-                    $(body...)
-                  end))
         end
     end
-
-    # Outer constructor
-
-    let
-        args = []
-        callargs = []
-        for n in 1:rank
-            if fixed_lbnd[n]
-                if fixed_ubnd[n]
-                    push!(args, :(::Colon))
-                else
-                    push!(args, :($(ubnd[n])::Int))
-                    push!(callargs, ubnd[n])
-                end
-            else
-                if fixed_ubnd[n]
-                    push!(args, :($(lbnd[n])::Tuple{Integer}))
-                    push!(callargs, :($(lbnd[n])[1]))
-                else
-                    push!(args, :($(Symbol(:bnds,n))::UnitRange{Int}))
-                    push!(callargs, :($(Symbol(:bnds,n)).start))
-                    push!(callargs, :($(Symbol(:bnds,n)).stop))
-                end
-            end
+    for i in 1:N
+        if FixedBnds[i][1] !== nothing && FixedBnds[i][2] !== nothing
+            FixedBnds[i][2] >= FixedBnds[i][1] - 1 || (error(); return false)
         end
-        if VERSION < v"0.5.0-"
-            # Julia v0.4
-            push!(decls,
-                  :(function call{$(typeparams...)}(::Type{$typenameparams},
-                                                    $(args...))
-                        $typenameparams(nothing, $(callargs...))
-                    end))
+    end
+    DynStrs <: Tuple || (error(); return false)
+    hasfixedoffset = true
+    hasfixedlength = true
+    for i in 1:N
+        hasfixedoffset = hasfixedlength && FixedBnds[i][1] !== nothing
+        if hasfixedlength
+            fieldtype(DynStrs, i) === Void || (error(); return false)
         else
-            # Julia v0.5
-            push!(decls,
-                  :(function (::Type{$typenameparams}){$(typeparams...)}(
-                            $(args...))
-                        $typenameparams(nothing, $(callargs...))
-                    end))
+            fieldtype(DynStrs, i) === Int || (error(); return false)
         end
+        hasfixedlength &=
+            FixedBnds[i][1] !== nothing && FixedBnds[i][2] !== nothing
     end
-
-    let
-        bndschecks = []
-        for n in 1:rank
-            if fixed_ubnd[n]
-                push!(bndschecks, :(newsize[$n] == size(arr, $n)))
-            end
-        end
-        callargs = []
-        for n in 1:rank
-            if !fixed_lbnd[n]
-                push!(callargs, :(lbnd(arr, $n)))
-            end
-            if !fixed_ubnd[n]
-                push!(callargs, :(newsize[$n] - lbnd(arr, $n) - 1))
-            end
-        end
-        push!(decls,
-              :(function similar{$(typeparams...)}(arr::$typenameparams,
-                                                   newtype::Type = T,
-                                                   newsize::NTuple{$rank,Int} =
-                                                       size(arr))
-                  if !(&)(true, $(bndschecks...))
-                      Base.throw_boundserror(arr, newdims)
-                  end
-                  $typename{$(typeparams[1:end-1]...), newtype}(nothing,
-                                                                $(callargs...))
-                end))
+    if hasfixedlength
+        DynLen === Void || (error(); return false)
+    else
+        DynLen === Int || (error(); return false)
     end
+    if hasfixedoffset
+        DynOff === Void || (error(); return false)
+    else
+        DynOff === Int || (error(); return false)
+    end
+    return true
+end
 
-    # Lower bound, upper bound, stride, length, offset
-
-    for n in 1:rank
-        if fixed_lbnd[n]
-            push!(decls,
-                  :(function lbnd{$(typeparams...)}(::$typenameparams,
-                                                    ::Type{Val{$n}})
-                      $(lbnd[n])
-                    end))
-            push!(decls,
-                  :(function lbnd{$(typeparams...)}(::Type{$typenameparams},
-                                                    ::Type{Val{$n}})
-                      $(lbnd[n])
-                    end))
+@generated function calc_details{FixedBnds, DynBnds, DynStrs, DynLen, DynOff
+                                 }(::Type{Val{FixedBnds}}, ::Type{DynBnds},
+                                   ::Type{DynStrs}, ::Type{DynLen},
+                                   ::Type{DynOff}, dynbnds)
+    N = length(FixedBnds)
+    lbndexprs = []
+    for i in 1:N
+        if FixedBnds[i][1] !== nothing
+            push!(lbndexprs, FixedBnds[i][1])
         else
-            push!(decls,
-                  :(function lbnd{$(typeparams...)}(arr::$typenameparams,
-                                                    ::Type{Val{$n}})
-                      arr.$(lbnd[n])
-                    end))
+            push!(lbndexprs, :(dynbnds[$i][1]))
         end
     end
-
-    for n in 1:rank
-        if fixed_ubnd[n]
-            push!(decls,
-                  :(function ubnd{$(typeparams...)}(::$typenameparams,
-                                                    ::Type{Val{$n}})
-                      $(ubnd[n])
-                    end))
-            push!(decls,
-                  :(function ubnd{$(typeparams...)}(::Type{$typenameparams},
-                                                    ::Type{Val{$n}})
-                      $(ubnd[n])
-                    end))
+    ubndexprs = []
+    for i in 1:N
+        if FixedBnds[i][2] !== nothing
+            push!(ubndexprs, FixedBnds[i][2])
         else
-            push!(decls,
-                  :(function ubnd{$(typeparams...)}(arr::$typenameparams,
-                                                    ::Type{Val{$n}})
-                      arr.$(ubnd[n])
-                    end))
+            push!(ubndexprs, :(dynbnds[$i][2]))
         end
     end
-
-    for n in 1:rank
-        if fixed_stride[n]
-            push!(decls,
-                  :(function stride{$(typeparams...)}(::$typenameparams,
-                                                      ::Type{Val{$n}})
-                      $(Expr(:meta, :inline))
-                      *(1, $([:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
-                              for m in 1:(n-1)]...))
-                    end))
-            push!(decls,
-                  :(function stride{$(typeparams...)}(::Type{$typenameparams},
-                                                      ::Type{Val{$n}})
-                      $(Expr(:meta, :inline))
-                      *(1, $([:(max(0, $(ubnd[m]) - $(lbnd[m]) + 1))
-                              for m in 1:(n-1)]...))
-                    end))
-        else
-            push!(decls,
-                  :(function stride{$(typeparams...)}(arr::$typenameparams,
-                                                      ::Type{Val{$n}})
-                      arr.$(stride[n])
-                    end))
+    quote
+        lbnds = tuple($(lbndexprs...))
+        ubnds = tuple($(ubndexprs...))
+        ubnds = ntuple(i->max(lbnds[i] - 1, ubnds[i]), $N)
+        length = 1
+        strs = ntuple($N) do i
+            oldlength = length
+            length *= ubnds[i] - lbnds[i] + 1
+            oldlength
         end
+        offset = +(1, $((:(- lbnds[$i] * strs[$i]) for i in 1:N)...))
+        dynlbnds = tuple($((fieldtype(fieldtype(DynBnds, i), 1) === Int ?
+                            :(lbnds[$i]) : :nothing
+                            for i in 1:N)...))
+        dynubnds = tuple($((fieldtype(fieldtype(DynBnds, i), 2) === Int ?
+                            :(ubnds[$i]) : :nothing
+                            for i in 1:N)...))
+        dynbnds = tuple($((:(dynlbnds[$i], dynubnds[$i]) for i in 1:N)...))
+        dynstrs = tuple($((fieldtype(DynStrs, i) === Int ?
+                           :(strs[$i]) : :nothing
+                           for i in 1:N)...))
+        dynlen = $(DynLen === Int ? :length : :nothing)
+        dynoff = $(DynOff === Int ? :offset : :nothing)
+        dynbnds, dynstrs, dynlen, dynoff, length
     end
+end
 
-    if fixed_length
-        push!(decls,
-              :(function length{$(typeparams...)}(::$typenameparams)
-                  $(Expr(:meta, :inline))
-                  *(1, $([:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
-                          for n in 1:rank]...))
-                end))
-        push!(decls,
-              :(function length{$(typeparams...)}(::Type{$typenameparams})
-                  $(Expr(:meta, :inline))
-                  *(1, $([:(max(0, $(ubnd[n]) - $(lbnd[n]) + 1))
-                          for n in 1:rank]...))
-                end))
+@generated function lbnd{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, D
+                         }(a::MutableFastArrayImpl{N, FixedBnds, DynBnds,
+                                                   DynStrs, DynLen, DynOff},
+                           ::Type{Val{D}})
+    if fieldtype(fieldtype(DynBnds, D), 1) === Void
+        FixedBnds[D][1]
     else
-        push!(decls,
-              :(function length{$(typeparams...)}(arr::$typenameparams)
-                  arr.length
-                end))
+        :(a.dynbnds[D][1])
     end
+end
 
-    if fixed_offset
-        push!(decls,
-              :(function offset{$(typeparams...)}(::$typenameparams)
-                  $(Expr(:meta, :inline))
-                  $([:($(stride[n]) =
-                       $(n == 1 ?
-                         1 :
-                         :($(stride[n-1]) *
-                           max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1))))
-                     for n in 1:rank]...)
-                  +(0, $([:($(stride[n]) * $(lbnd[n])) for n in 1:rank]...))
-                end))
-        push!(decls,
-              :(function offset{$(typeparams...)}(::Type{$typenameparams})
-                  $(Expr(:meta, :inline))
-                  $([:($(stride[n]) =
-                       $(n == 1 ?
-                         1 :
-                         :($(stride[n-1]) *
-                           max(0, $(ubnd[n-1]) - $(lbnd[n-1]) + 1))))
-                     for n in 1:rank]...)
-                  +(0, $([:($(stride[n]) * $(lbnd[n])) for n in 1:rank]...))
-                end))
+@generated function ubnd{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, D
+                         }(a::MutableFastArrayImpl{N, FixedBnds, DynBnds,
+                                                   DynStrs, DynLen, DynOff},
+                           ::Type{Val{D}})
+    if fieldtype(fieldtype(DynBnds, D), 2) === Void
+        FixedBnds[D][2]
     else
-        push!(decls,
-              :(function offset{$(typeparams...)}(arr::$typenameparams)
-                  arr.offset
-                end))
+        :(a.dynbnds[D][2])
     end
+end
 
-    # Array indexing
-
-    # TODO: Define these as generated function once variable-length
-    # argument lists are handled efficiently
-
-    push!(decls,
-          :(function isinbounds{$(typeparams...)}(
-                    arr::$typenameparams,
-                    $([:($(Symbol(:ind,n))::Int) for n in 1:rank]...))
-                $(Expr(:meta, :inline))
-                (&)(true,
-                    $([:(lbnd(arr, Val{$n}) <= $(Symbol(:ind,n)) <=
-                         ubnd(arr, Val{$n}))
-                       for n in 1:rank]...))
-            end))
-
-    push!(decls,
-          :(function checkbounds{$(typeparams...)}(
-                    arr::$typenameparams,
-                    $([:($(Symbol(:ind,n))::Int) for n in 1:rank]...))
-                if !isinbounds(arr,
-                               $([Symbol(:ind,n) for n in 1:rank]...))
-                    Base.throw_boundserror(arr, tuple($([Symbol(:ind,n)
-                                                         for n in 1:rank]...)))
-                end
-            end))
-
-    push!(decls,
-          :(function checkbounds{$(typeparams...)}(arr::$typenameparams,
-                                                   idx::LinearIndex)
-              if !(1 <= idx.i <= length(arr))
-                  Base.throw_boundserror(arr, tuple(ind))
-              end
-            end))
-
-    push!(decls,
-          :(function linearindex{$(typeparams...)}(
-                    arr::$typenameparams,
-                    $([:($(Symbol(:ind,n))::Int) for n in 1:rank]...))
-                $(Expr(:meta, :inline, :propagate_inbounds))
-                # The @boundscheck macro does not exist in Julia 0.4
-                $(Expr(:boundscheck, true))
-                checkbounds(arr, $([Symbol(:ind,n) for n in 1:rank]...))
-                $(Expr(:boundscheck, :pop))
-                LinearIndex(+(0, $([:($(Symbol(:ind,n)) * stride(arr, Val{$n}))
-                                    for n in 1:rank]...))
-                            - offset(arr) + 1)
-            end))
-
-    push!(decls,
-          :(function getindex{$(typeparams...)}(arr::$typenameparams,
-                                                idx::LinearIndex)
-              $(Expr(:meta, :inline, :propagate_inbounds))
-              # The @boundscheck macro does not exist in Julia 0.4
-              $(Expr(:boundscheck, true))
-              checkbounds(arr, idx)
-              $(Expr(:boundscheck, :pop))
-              @inbounds val = arr.data[idx.i]
-              val
-            end))
-
-    if isimmutable
-        push!(decls,
-              :(function setindex{$(typeparams...)}(arr::$typenameparams, val,
-                                                    idx::LinearIndex)
-                  $(Expr(:meta, :inline, :propagate_inbounds))
-                  $(Expr(:boundscheck, true))
-                  checkbounds(arr, idx)
-                  $(Expr(:boundscheck, :pop))
-                  $typenameparams(nothing, setindex(arr.data, val, idx.i))
-                end))
+@generated function str{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, D
+                        }(a::MutableFastArrayImpl{N, FixedBnds, DynBnds,
+                                                  DynStrs, DynLen, DynOff},
+                          ::Type{Val{D}})
+    if fieldtype(DynStrs, D) === Void
+        *(1, (FixedBnds[i][2] - FixedBnds[i][1] + 1 for i in 1:D-1)...)
     else
-        push!(decls,
-              :(function setindex!{$(typeparams...)}(arr::$typenameparams, val,
-                                                     idx::LinearIndex)
-                  $(Expr(:meta, :inline, :propagate_inbounds))
-                  $(Expr(:boundscheck, true))
-                  checkbounds(arr, idx)
-                  $(Expr(:boundscheck, :pop))
-                  @inbounds arr.data[idx.i] = val
-                  val
-                end))
+        :(a.dynstrs[D])
     end
+end
 
-    push!(decls,
-          :(function getindex{$(typeparams...)}(
-                    arr::$typenameparams,
-                    $([:($(Symbol(:ind,n))::Int) for n in 1:rank]...))
-                $(Expr(:meta, :inline, :propagate_inbounds))
-                idx = linearindex(arr, $([Symbol(:ind,n)
-                                          for n in 1:rank]...))
-                @inbounds val = arr.data[idx.i]
-                val
-            end))
-
-    if isimmutable
-        push!(decls,
-              :(function setindex{$(typeparams...)}(
-                        arr::$typenameparams, val,
-                        $([:($(Symbol(:ind,n))::Int)
-                           for n in 1:rank]...))
-                    $(Expr(:meta, :inline, :propagate_inbounds))
-                    idx = linearindex(arr, $([Symbol(:ind,n)
-                                              for n in 1:rank]...))
-                    $typenameparams(nothing, setindex(arr.data, val, idx.i))
-                end))
+@generated function len{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff
+                        }(a::MutableFastArrayImpl{N, FixedBnds, DynBnds,
+                                                  DynStrs, DynLen, DynOff})
+    if DynLen === Void
+        *(1, (FixedBnds[i][2] - FixedBnds[i][1] + 1 for i in 1:N)...)
     else
-        push!(decls,
-              :(function setindex!{$(typeparams...)}(
-                        arr::$typenameparams, val,
-                        $([:($(Symbol(:ind,n))::Int)
-                           for n in 1:rank]...))
-                    $(Expr(:meta, :inline, :propagate_inbounds))
-                    idx = linearindex(arr, $([Symbol(:ind,n)
-                                              for n in 1:rank]...))
-                    @inbounds arr.data[idx.i] = val
-                    val
-                end))
+        :(a.dynlen)
     end
+end
 
-    push!(decls,
-          :(function getindex{$(typeparams...)}(arr::$typenameparams,
-                                                inds::CartesianIndex{$rank})
-              $(Expr(:meta, :inline, :propagate_inbounds))
-              arr[$([:(inds[$i]) for i in 1:rank]...)]
-            end))
-
-    if isimmutable
-        push!(decls,
-              :(function setindex{$(typeparams...)}(arr::$typenameparams, val,
-                                                    inds::CartesianIndex{$rank})
-                  $(Expr(:meta, :inline, :propagate_inbounds))
-                  setindex(arr, val, $([:(inds[$i]) for i in 1:rank]...))
-                end))
+@generated function off{N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff
+                        }(a::MutableFastArrayImpl{N, FixedBnds, DynBnds,
+                                                  DynStrs, DynLen, DynOff})
+    if DynOff === Void
+        strs = Int[1]
+        for i in 2:N
+            push!(strs, strs[i-1] * (FixedBnds[i-1][2] - FixedBnds[i-1][1] + 1))
+        end
+        +(1, (- strs[i] * FixedBnds[i][1] for i in 1:N)...)
     else
-        push!(decls,
-              :(function setindex!{$(typeparams...)}(
-                        arr::$typenameparams, val,
-                        inds::CartesianIndex{$rank})
-                    $(Expr(:meta, :inline, :propagate_inbounds))
-                    arr[$([:(inds[$i]) for i in 1:rank]...)] = val
-                end))
+        :(a.dynoff)
     end
-
-    eval(quote $(decls...) end)
-
-    eval(typename)::Type
 end
 
 
 
 export FastArray
-function FastArray(dimspecs...)
-    rank = length(dimspecs)
-    bnds = BndSpec[]
-    dims = Int[]
-    for n in 1:rank
-        dimspec = dimspecs[n]
-        if isa(dimspec, Colon) || isa(dimspec, Tuple{Void, Void})
-            push!(bnds, (false,false))
-        elseif isa(dimspec, Integer)
-            push!(bnds, (true,false))
-            push!(dims, Int(dimspec))
-        elseif isa(dimspec, Tuple{Integer, Void})
-            push!(bnds, (true,false))
-            push!(dims, Int(dimspec[1]))
-        elseif isa(dimspec, UnitRange)
-            push!(bnds, (true,true))
-            push!(dims, Int(dimspec.start))
-            push!(dims, Int(dimspec.stop))
-        elseif isa(dimspec, Tuple{Integer, Integer})
-            push!(bnds, (true,true))
-            push!(dims, Int(dimspec[1]))
-            push!(dims, Int(dimspec[2]))
-        elseif isa(dimspec, Tuple{Void, Integer})
-            push!(bnds, (false,true))
-            push!(dims, Int(dimspec[2]))
+@generated function FastArray{N}(bnds::NTuple{N, BndSpec})
+    isfixed = NTuple{2, Bool}[]
+    fixedbnds = []
+    for i in 1:N
+        bnd = fieldtype(bnds, i)
+        if bnd === UnitRange{Int}
+            push!(isfixed, (true, true))
+            push!(fixedbnds,
+                  :((bnds[$i].start, max(bnds[$i].start - 1, bnds[$i].stop))))
+        elseif bnd === Int
+            push!(isfixed, (true, false))
+            push!(fixedbnds, :((bnds[$i], nothing)))
+        elseif bnd === Colon
+            push!(isfixed, (false, false))
+            push!(fixedbnds, :((nothing, nothing)))
+        elseif bnd === Tuple{Int, Int}
+            push!(isfixed, (true, true))
+            push!(fixedbnds,
+                  :((bnds[$i][1], max(bnds[$i][1] - 1, bnds[$i][2]))))
+        elseif bnd === Tuple{Int, Void}
+            push!(isfixed, (true, false))
+            push!(fixedbnds, :((bnds[$i][1], nothing)))
+        elseif bnd === Tuple{Void, Int}
+            push!(isfixed, (false, true))
+            push!(fixedbnds, :((nothing, bnds[$i][2])))
+        elseif bnd === Tuple{Void, Void}
+            push!(isfixed, (false, false))
+            push!(fixedbnds, :((nothing, nothing)))
         else
             @assert false
         end
     end
-    arrtype = genFastArray(false, bnds)
-    arrtype{dims...}
-end
-
-export ImmutableArray
-function ImmutableArray(dimspecs...)
-    rank = length(dimspecs)
-    bnds = BndSpec[]
-    dims = Int[]
-    len = 1
-    for n in 1:rank
-        dimspec = dimspecs[n]
-        if isa(dimspec, Colon) || isa(dimspec, Tuple{Void, Void})
-            push!(bnds, (false,false))
-            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
-        elseif isa(dimspec, Integer)
-            push!(bnds, (true,false))
-            push!(dims, Int(dimspec))
-            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
-        elseif isa(dimspec, Tuple{Integer, Void})
-            push!(bnds, (true,false))
-            push!(dims, Int(dimspec[1]))
-            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
-        elseif isa(dimspec, UnitRange)
-            push!(bnds, (true,true))
-            push!(dims, Int(dimspec.start))
-            push!(dims, Int(dimspec.stop))
-            len *= max(0, Int(dimspec.stop) - Int(dimspec.start) + 1)
-        elseif isa(dimspec, Tuple{Integer, Integer})
-            push!(bnds, (true,true))
-            push!(dims, Int(dimspec[1]))
-            push!(dims, Int(dimspec[2]))
-            len *= max(0, Int(dimspec[2]) - Int(dimspec[1]) + 1)
-        elseif isa(dimspec, Tuple{Void, Integer})
-            push!(bnds, (false,true))
-            push!(dims, Int(dimspec[2]))
-            throw(BoundsError("All dimentions of an immutable array must have fixed lower and upper bounds"))
-        else
-            @assert false
-        end
+    dynbnds = []
+    for i in 1:N
+        lbnd = isfixed[i][1] ? :Void : :Int
+        ubnd = isfixed[i][2] ? :Void : :Int
+        push!(dynbnds, :(Tuple{$lbnd, $ubnd}))
     end
-    arrtype = genFastArray(true, bnds)
-    # TODO: allow flexible lower bounds as well, if the total size is fixed
-    arrtype{dims..., len}
-end
-
-
-
-# Functor, Applicative Functor
-
-import Base: map
-
-@noinline function map_checkbounds(arr, other)
-    lbnd_arr = lbnd(arr)
-    ubnd_arr = ubnd(arr)
-    if lbnd(other) != lbnd_arr
-        Base.throw_boundserror(other, lbnd_arr)
+    dynstrs = []
+    hasfixedoffset = true
+    hasfixedlength = true
+    for i in 1:N
+        hasfixedoffset = hasfixedlength && isfixed[i][1]
+        push!(dynstrs, hasfixedlength ? :Void : :Int)
+        hasfixedlength &= isfixed[i][1] && isfixed[i][2]
     end
-    if ubnd(other) != ubnd_arr
-        Base.throw_boundserror(other, ubnd_arr)
-    end
-end
-
-@generated function map_kernel!{R,T,N}(f, res::AbstractImmutableFastArray{R,N},
-                                       arr::AbstractImmutableFastArray{T,N},
-                                       others...)
-    nothers = length(others)
+    dynlen = hasfixedlength ? :Void : :Int
+    dynoff = hasfixedoffset ? :Void : :Int
+    fixedbnds = :(tuple($(fixedbnds...)))
+    dynbnds = :(Tuple{$(dynbnds...)})
+    dynstrs = :(Tuple{$(dynstrs...)})
     quote
-        for i in eachindex(res)
-            res = setindex(res, f(arr[i], $([:(others[$n][i])
-                                             for n in 1:nothers]...)), i)
-        end
-        res
+        MutableFastArrayImpl{$N, $fixedbnds, $dynbnds, $dynstrs, $dynlen,
+                             $dynoff}
     end
 end
 
-@generated function map_kernel!{R,T,N}(f, res::AbstractMutableFastArray{R,N},
-                                       arr::AbstractMutableFastArray{T,N},
-                                       others...)
-    nothers = length(others)
+@generated function FastArray(bnds::BndSpec...)
     quote
-        for i in eachindex(res)
-            res[i] = f(arr[i], $([:(others[$n][i]) for n in 1:nothers]...))
-        end
-        res
-    end
-end
-
-@generated function map(f, arr::AbstractFastArray, others...)
-    nothers = length(others)
-    quote
-        $(Expr(:boundscheck, true))
-        $([:(map_checkbounds(arr, others[$n])) for n in 1:nothers]...)
-        $(Expr(:boundscheck, :pop))
-        if isempty(arr)
-            return similar(arr)
-        end
-        i0 = CartesianIndex(lbnd(arr))
-        r0 = f(arr[i0], $([:(others[$n][i0]) for n in 1:nothers]...))
-        R = typeof(r0)
-        res = similar(arr, R)
-        map_kernel!(f, res, arr, $([:(others[$n]) for n in 1:nothers]...))
+        FastArray(bnds)
     end
 end
 
 
 
-# Foldable
-
-import Base: mapreduce, reduce
-
-@generated function mapreduce_kernel(f, op, v0, arr::AbstractFastArray,
-                                     others...)
-    nothers = length(others)
+import Base: indices
+@generated function indices{N}(a::MutableFastArrayImpl{N})
     quote
-        res = v0
-        for i in eachindex(arr)
-            res = op(res, f(arr[i], $([:(others[$n][i])
-                                       for n in 1:nothers]...)))
-        end
-        res
+        $(Expr(:meta, :inline))
+        # TODO: Return Base.OneTo for respective fixed lower bounds
+        tuple($((:(lbnd(a, Val{$i}) : ubnd(a, Val{$i})) for i in 1:N)...))
     end
 end
 
-@generated function mapreduce(f, op, v0, arr::AbstractFastArray, others...)
-    nothers = length(others)
+import Base: size
+@generated function size{N}(a::MutableFastArrayImpl{N})
     quote
-        $(Expr(:boundscheck, true))
-        $([:(map_checkbounds(arr, others[$n])) for n in 1:nothers]...)
-        $(Expr(:boundscheck, :pop))
-        mapreduce_kernel(f, op, v0, arr,
-                         $([:(others[$n]) for n in 1:nothers]...))
+        inds = indices(a)
+        tuple($((:(inds[$i].stop - inds[$i].start + 1) for i in 1:N)...))
     end
 end
+# size(a, d...) is provided by Base
 
-@generated function reduce(op, v0, arr::AbstractFastArray, others...)
-    nothers = length(others)
+import Base: strides
+@generated function strides{N}(a::MutableFastArrayImpl{N})
     quote
-        mapreduce(identity, op, v0, arr,
-                  $([:(others[$n]) for n in 1:nothers]...))
+        tuple($((:(str(a, Val{$i})) for i in 1:N)...))
     end
+end
+import Base: stride
+function stride{N}(a::MutableFastArrayImpl{N}, d::Int)
+    strides(a)[d]
+end
+
+import Base: length
+function length(a::MutableFastArrayImpl)
+    len(a)
+end
+
+
+
+import Base: linearindexing
+linearindexing(::AbstractFastArray) = Base.LinearFast()
+
+export LinearIndex
+immutable LinearIndex
+    ind::Int
+end
+
+export linearindex
+function linearindex{N}(a::MutableFastArrayImpl{N}, idx::CartesianIndex{N})
+    Base.@_propagate_inbounds_meta()
+    @boundscheck checkbounds(a, idx)
+    str = strides(a)
+    lind = off(a)
+    for i in 1:N
+        lind += str[i] * idx[i]
+    end
+    LinearIndex(lind)
+end
+function linearindex{N}(a::MutableFastArrayImpl{N}, idx::NTuple{N, Int})
+    Base.@_propagate_inbounds_meta()
+    linearindex(a, CartesianIndex(idx))
+end
+
+import Base: getindex
+function getindex(a::MutableFastArrayImpl, idx::LinearIndex)
+    Base.@_propagate_inbounds_meta()
+    getindex(a.data, idx.ind)
+end
+function getindex(a::MutableFastArrayImpl, idx::Union{Tuple, CartesianIndex})
+    throw(BoundsError(a, idx))
+end
+function getindex{N}(a::MutableFastArrayImpl{N},
+                     idx::Union{NTuple{N, Int}, CartesianIndex{N}})
+    Base.@_propagate_inbounds_meta()
+    lidx = linearindex(a, idx)
+    @inbounds val = getindex(a, lidx)
+    val
+end
+function getindex{N}(a::MutableFastArrayImpl{N}, ids::Int...)
+    Base.@_propagate_inbounds_meta()
+    getindex(a, ids)
+end
+
+import Base: setindex!
+function setindex!(a::MutableFastArrayImpl, val, idx::LinearIndex)
+    Base.@_propagate_inbounds_meta()
+    setindex!(a.data, val, idx.ind)
+end
+function setindex!(a::MutableFastArrayImpl, val,
+                   idx::Union{Tuple, CartesianIndex})
+    throw(BoundsError(a, idx))
+end
+function setindex!{N}(a::MutableFastArrayImpl{N},
+                      val, idx::Union{NTuple{N, Int}, CartesianIndex{N}})
+    Base.@_propagate_inbounds_meta()
+    lidx = linearindex(a, idx)
+    @inbounds val = setindex!(a, val, lidx)
+    val
+end
+function setindex!{N}(a::MutableFastArrayImpl{N}, val, ids::Int...)
+    Base.@_propagate_inbounds_meta()
+    setindex!(a, val, ids)
+end
+
+
+
+import Base: start, done, next
+function start(a::MutableFastArrayImpl)
+    inds = indices(a)
+    linearindex(a, ntuple(i -> inds[i].start, length(inds)))
+end
+function done(a::MutableFastArrayImpl, state)
+    inds = indices(a)
+    state.ind > linearindex(a, ntuple(i -> inds[i].stop, length(inds))).ind
+end
+function next(a::MutableFastArrayImpl, state)
+    a[state], LinearIndex(state.ind + 1)
+end
+
+import Base: vec
+function vec(a::MutableFastArrayImpl)
+    copy(a.data)
+end
+
+import Base: collect
+function collect(a::MutableFastArrayImpl)
+    reshape(vec(a), size(a))
 end
 
 end

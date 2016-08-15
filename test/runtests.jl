@@ -1,319 +1,242 @@
 using FastArrays
 using Base.Test
 
-FastArray()
+typealias tycon0 FastArray()
+FastArray(())
+typealias ty0 tycon0{Float64}
+a0_f64 = ty0()
 
-FastArray(1:10)
-FastArray(1)
-FastArray(:)
+@test ndims(a0_f64) === 0
+@test indices(a0_f64) === ()
+@test size(a0_f64) === ()
+@test length(a0_f64) === 1
+@test strides(a0_f64) === ()
 
-FastArray(1:10,1:10)
-FastArray(1:10,1)
-FastArray(1:10,:)
-FastArray(1,1:10)
-FastArray(1,1)
-FastArray(1,:)
-FastArray(:,1:10)
-FastArray(:,1)
-FastArray(:,:)
+a0_f64[] = 1
+@test a0_f64[] === 1.0
+@test_throws BoundsError a0_f64[1] = 2.0
+@test_throws BoundsError a0_f64[1,2] = 2.0
+@test_throws BoundsError a0_f64[1]
+@test_throws BoundsError a0_f64[1,2]
 
-FastArray(){Int}(nothing)
-FastArray(){Int}()
 
-FastArray(1:10){Int}(nothing)
-FastArray(1){Int}(nothing, 10)
-FastArray(:){Int}(nothing, 1, 10)
-FastArray(1:10){Int}(:)
-FastArray(1){Int}(10)
-FastArray(:){Int}(1:10)
 
-FastArray(1:10,1:10){Int}(:,:)
-FastArray(1:10,1){Int}(:,10)
-FastArray(1:10,:){Int}(:,1:10)
-FastArray(1,1:10){Int}(10,:)
-FastArray(1,1){Int}(10,10)
-FastArray(1,:){Int}(10,1:10)
-FastArray(:,1:10){Int}(1:10,:)
-FastArray(:,1){Int}(1:10,10)
-FastArray(:,:){Int}(1:10,1:10)
+typealias tycon1ff FastArray(0:3)
+typealias tycon1ff FastArray(0:3)
+typealias ty1ff tycon1ff{Float64}
+a1ff_f64 = ty1ff(:)
 
-# 0D
+@test ndims(a1ff_f64) === 1
+@test indices(a1ff_f64) === (0:3,)
+@test size(a1ff_f64) === (4,)
+@test length(a1ff_f64) === 4
+@test strides(a1ff_f64) === (1,)
 
-Arr0 = FastArray(){Float64}
-Arr0b = FastArray(){Int}
-@test eltype(Arr0) === Float64
-@test ndims(Arr0) === 0
-@test length(Arr0) === 1
-@test lbnd(Arr0) === ()
-@test ubnd(Arr0) === ()
-@test size(Arr0) === ()
+a1ff_f64[0] = 1
+@test a1ff_f64[0] === 1.0
+a1ff_f64[3] = 2
+@test a1ff_f64[3] === 2.0
+@test_throws BoundsError a1ff_f64[] = 3
+@test_throws BoundsError a1ff_f64[]
+@test_throws BoundsError a1ff_f64[-1] = 3
+@test_throws BoundsError a1ff_f64[-1]
+@test_throws BoundsError a1ff_f64[4] = 3
+@test_throws BoundsError a1ff_f64[4]
+@test_throws BoundsError a1ff_f64[1,2] = 3
+@test_throws BoundsError a1ff_f64[1,2]
 
-arr0 = Arr0()
-@test eltype(arr0) === Float64
-@test ndims(arr0) === 0
-@test length(arr0) === 1
-@test lbnd(arr0) === ()
-@test ubnd(arr0) === ()
-@test size(arr0) === ()
+typealias tycon1fd FastArray(0)
+typealias ty1fd tycon1fd{Float64}
+a1fd_f64 = ty1fd(3)
 
-arr0[] = 42
-@test arr0[] === 42.0
-@test string(arr0) == "42.0 "
+@test ndims(a1fd_f64) === 1
+@test indices(a1fd_f64) === (0:3,)
+@test size(a1fd_f64) === (4,)
+@test length(a1fd_f64) === 4
+@test strides(a1fd_f64) === (1,)
 
-# 1D
+a1fd_f64[0] = 1
+@test a1fd_f64[0] === 1.0
+a1fd_f64[3] = 2
+@test a1fd_f64[3] === 2.0
+@test_throws BoundsError a1fd_f64[] = 3
+@test_throws BoundsError a1fd_f64[]
+@test_throws BoundsError a1fd_f64[-1] = 3
+@test_throws BoundsError a1fd_f64[-1]
+@test_throws BoundsError a1fd_f64[4] = 3
+@test_throws BoundsError a1fd_f64[4]
+@test_throws BoundsError a1fd_f64[1,2] = 3
+@test_throws BoundsError a1fd_f64[1,2]
 
-Arr1_fix = FastArray(1:10){Float64}
-@test eltype(Arr1_fix) === Float64
-@test length(Arr1_fix) === 10
-@test lbnd(Arr1_fix, 1) === 1
-@test ubnd(Arr1_fix, 1) === 10
-@test size(Arr1_fix, 1) === 10
-arr1_fix = Arr1_fix(:)
-arr1_fix_b = Arr1_fix(nothing )
-@test eltype(arr1_fix) === Float64
-@test length(arr1_fix) === 10
-@test lbnd(arr1_fix, 1) === 1
-@test ubnd(arr1_fix, 1) === 10
-@test size(arr1_fix, 1) === 10
+typealias tycon1df FastArray((nothing, 3))
+typealias ty1df tycon1df{Float64}
+a1df_f64 = ty1df((0, nothing))
 
-for i in 1:10
-    arr1_fix[i] = 42+i
+@test ndims(a1df_f64) === 1
+@test indices(a1df_f64) === (0:3,)
+@test size(a1df_f64) === (4,)
+@test length(a1df_f64) === 4
+@test strides(a1df_f64) === (1,)
+
+a1df_f64[0] = 1
+@test a1df_f64[0] === 1.0
+a1df_f64[3] = 2
+@test a1df_f64[3] === 2.0
+@test_throws BoundsError a1df_f64[] = 3
+@test_throws BoundsError a1df_f64[]
+@test_throws BoundsError a1df_f64[-1] = 3
+@test_throws BoundsError a1df_f64[-1]
+@test_throws BoundsError a1df_f64[4] = 3
+@test_throws BoundsError a1df_f64[4]
+@test_throws BoundsError a1df_f64[1,2] = 3
+@test_throws BoundsError a1df_f64[1,2]
+
+typealias tycon1dd FastArray(:)
+typealias ty1dd tycon1dd{Float64}
+a1dd_f64 = ty1dd(0:3)
+
+@test ndims(a1dd_f64) === 1
+@test indices(a1dd_f64) === (0:3,)
+@test size(a1dd_f64) === (4,)
+@test length(a1dd_f64) === 4
+@test strides(a1dd_f64) === (1,)
+
+a1dd_f64[0] = 1
+@test a1dd_f64[0] === 1.0
+a1dd_f64[3] = 2
+@test a1dd_f64[3] === 2.0
+@test_throws BoundsError a1dd_f64[] = 3
+@test_throws BoundsError a1dd_f64[]
+@test_throws BoundsError a1dd_f64[-1] = 3
+@test_throws BoundsError a1dd_f64[-1]
+@test_throws BoundsError a1dd_f64[4] = 3
+@test_throws BoundsError a1dd_f64[4]
+@test_throws BoundsError a1dd_f64[1,2] = 3
+@test_throws BoundsError a1dd_f64[1,2]
+
+
+
+typealias tycon2ffff FastArray(0:3, 0:4)
+typealias ty2ffff tycon2ffff{Float64}
+a2ffff_f64 = ty2ffff(:, :)
+
+@test ndims(a2ffff_f64) === 2
+@test indices(a2ffff_f64) === (0:3, 0:4)
+@test size(a2ffff_f64) === (4, 5)
+@test length(a2ffff_f64) === 4 * 5
+@test strides(a2ffff_f64) === (1, 4)
+
+a2ffff_f64[0,0] = 1
+@test a2ffff_f64[0,0] === 1.0
+a2ffff_f64[3,4] = 2
+@test a2ffff_f64[3,4] === 2.0
+@test_throws BoundsError a2ffff_f64[] = 3
+@test_throws BoundsError a2ffff_f64[]
+@test_throws BoundsError a2ffff_f64[1] = 3
+@test_throws BoundsError a2ffff_f64[1]
+@test_throws BoundsError a2ffff_f64[-1,2] = 3
+@test_throws BoundsError a2ffff_f64[-1,2]
+@test_throws BoundsError a2ffff_f64[4,2] = 3
+@test_throws BoundsError a2ffff_f64[4,2]
+@test_throws BoundsError a2ffff_f64[0,-1] = 3
+@test_throws BoundsError a2ffff_f64[0,-1]
+@test_throws BoundsError a2ffff_f64[0,5] = 3
+@test_throws BoundsError a2ffff_f64[0,5]
+@test_throws BoundsError a2ffff_f64[1,2,3] = 3
+@test_throws BoundsError a2ffff_f64[1,2,3]
+
+typealias tycon2fffd FastArray(0:3, 0)
+typealias ty2fffd tycon2fffd{Float64}
+a2fffd_f64 = ty2fffd(:, 4)
+
+@test ndims(a2fffd_f64) === 2
+@test indices(a2fffd_f64) === (0:3, 0:4)
+@test size(a2fffd_f64) === (4, 5)
+@test length(a2fffd_f64) === 4 * 5
+@test strides(a2fffd_f64) === (1, 4)
+
+a2fffd_f64[0,0] = 1
+@test a2fffd_f64[0,0] === 1.0
+a2fffd_f64[3,4] = 2
+@test a2fffd_f64[3,4] === 2.0
+@test_throws BoundsError a2fffd_f64[] = 3
+@test_throws BoundsError a2fffd_f64[]
+@test_throws BoundsError a2fffd_f64[1] = 3
+@test_throws BoundsError a2fffd_f64[1]
+@test_throws BoundsError a2fffd_f64[-1,2] = 3
+@test_throws BoundsError a2fffd_f64[-1,2]
+@test_throws BoundsError a2fffd_f64[4,2] = 3
+@test_throws BoundsError a2fffd_f64[4,2]
+@test_throws BoundsError a2fffd_f64[0,-1] = 3
+@test_throws BoundsError a2fffd_f64[0,-1]
+@test_throws BoundsError a2fffd_f64[0,5] = 3
+@test_throws BoundsError a2fffd_f64[0,5]
+@test_throws BoundsError a2fffd_f64[1,2,3] = 3
+@test_throws BoundsError a2fffd_f64[1,2,3]
+
+
+
+typealias tycon4fffffdfd FastArray(0:3, 0:4, 1, 1)
+typealias ty4fffffdfd tycon4fffffdfd{Float64}
+a4fffffdfd_f64 = ty4fffffdfd(:, :, 5, 6)
+
+@test ndims(a4fffffdfd_f64) === 4
+@test indices(a4fffffdfd_f64) === (0:3, 0:4, 1:5, 1:6)
+@test size(a4fffffdfd_f64) === (4, 5, 5, 6)
+@test length(a4fffffdfd_f64) === 4 * 5 * 5 * 6
+@test strides(a4fffffdfd_f64) === (1, 4, 4 * 5, 4 * 5 * 5)
+
+a4fffffdfd_f64[0,0,1,1] = 1
+@test a4fffffdfd_f64[0,0,1,1] === 1.0
+a4fffffdfd_f64[3,4,5,6] = 2
+@test a4fffffdfd_f64[3,4,5,6] === 2.0
+@test_throws BoundsError a4fffffdfd_f64[] = 3
+@test_throws BoundsError a4fffffdfd_f64[]
+@test_throws BoundsError a4fffffdfd_f64[1] = 3
+@test_throws BoundsError a4fffffdfd_f64[1]
+@test_throws BoundsError a4fffffdfd_f64[1,2] = 3
+@test_throws BoundsError a4fffffdfd_f64[1,2]
+@test_throws BoundsError a4fffffdfd_f64[1,2,3] = 3
+@test_throws BoundsError a4fffffdfd_f64[1,2,3]
+@test_throws BoundsError a4fffffdfd_f64[1,2,0,0] = 3
+@test_throws BoundsError a4fffffdfd_f64[1,2,0,0]
+@test_throws BoundsError a4fffffdfd_f64[1,2,3,4,5] = 3
+@test_throws BoundsError a4fffffdfd_f64[1,2,3,4,5]
+
+
+
+typealias tycon10 FastArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
+typealias ty10 tycon10{Bool}
+a10_b = ty10(:,:,:,:,:,:,:,:,:,:)
+
+@test ndims(a10_b) === 10
+@test indices(a10_b) === ntuple(i->0:1, 10)
+@test size(a10_b) === ntuple(i->2, 10)
+@test length(a10_b) === 2^10
+@test strides(a10_b) === ((2^i for i in 0:10-1)...)
+
+a10_b[0,0,0,0,0,0,0,0,0,0] = true
+@test a10_b[0,0,0,0,0,0,0,0,0,0] === true
+a10_b[1,1,1,1,1,1,1,1,1,1] = false
+@test a10_b[1,1,1,1,1,1,1,1,1,1] === false
+
+
+
+for i in CartesianRange(indices(a0_f64))
+    a0_f64[i] = 2 * +(0, i.I...) + 1
 end
-for i in 1:10
-    @test arr1_fix[i] === 42.0+i
+@test vec(a0_f64) == [1]
+@test collect(a0_f64)[] == 1
+
+for i in CartesianRange(indices(a1ff_f64))
+    a1ff_f64[i] = 2 * +(0, i.I...) + 1
 end
-@test string(arr1_fix) ==
-    "[43.0 44.0 45.0 46.0 47.0 48.0 49.0 50.0 51.0 52.0 ]\n"
+@test vec(a1ff_f64) == [1, 3, 5, 7]
+@test collect(a1ff_f64) == [1, 3, 5, 7]
 
-Arr1_lb = FastArray(1){Float64}
-@test eltype(Arr1_lb) === Float64
-@test lbnd(Arr1_fix, 1) === 1
-arr1_lb = Arr1_lb(10)
-@test eltype(arr1_lb) === Float64
-@test length(arr1_lb) === 10
-@test lbnd(arr1_lb, 1) === 1
-@test ubnd(arr1_lb, 1) === 10
-@test size(arr1_lb, 1) === 10
-
-Arr1_gen = FastArray(:){Float64}
-@test eltype(Arr1_gen) === Float64
-arr1_gen = Arr1_gen(1:10)
-@test eltype(arr1_gen) === Float64
-@test length(arr1_gen) === 10
-@test lbnd(arr1_gen, 1) === 1
-@test ubnd(arr1_gen, 1) === 10
-@test size(arr1_gen, 1) === 10
-
-# 2D
-
-na = nothing
-for bnds1 in [(1,10), (na,10), (1,na), (na,na)],
-    bnds2 in [(0,11), (na,11), (0,na), (na,na)]
-
-    Arr2 = FastArray(bnds1, bnds2){Float64}
-    @test eltype(Arr2) === Float64
-    if bnds1[1]!==na && bnds1[2]!==na && bnds2[1]!==na && bnds2[2]!==na
-        @test length(Arr2) === 120
-    end
-    bnds1[1]!==na && @test lbnd(Arr2, 1) === 1
-    bnds2[1]!==na && @test lbnd(Arr2, 2) === 0
-    bnds1[2]!==na && @test ubnd(Arr2, 1) === 10
-    bnds2[2]!==na && @test ubnd(Arr2, 2) === 11
-    bnds1[1]!==na && bnds1[2]!==na && @test size(Arr2, 1) === 10
-    bnds2[1]!==na && bnds2[2]!==na && @test size(Arr2, 2) === 12
-    sizes = []
-    bnds1[1]===na && bnds1[2]===na && push!(sizes, 1:10)
-    bnds1[1]===na && bnds1[2]!==na && push!(sizes, (1,))
-    bnds1[1]!==na && bnds1[2]===na && push!(sizes, 10)
-    bnds1[1]!==na && bnds1[2]!==na && push!(sizes, :)
-    bnds2[1]===na && bnds2[2]===na && push!(sizes, 0:11)
-    bnds2[1]===na && bnds2[2]!==na && push!(sizes, (0,))
-    bnds2[1]!==na && bnds2[2]===na && push!(sizes, 11)
-    bnds2[1]!==na && bnds2[2]!==na && push!(sizes, :)
-    arr2 = Arr2(sizes...)
-    @test eltype(arr2) === Float64
-    @test length(arr2) === 120
-    @test lbnd(arr2, 1) === 1
-    @test lbnd(arr2, 2) === 0
-    @test ubnd(arr2, 1) === 10
-    @test ubnd(arr2, 2) === 11
-    @test size(arr2, 1) === 10
-    @test size(arr2, 2) === 12
+for i in CartesianRange(indices(a2ffff_f64))
+    a2ffff_f64[i] = 2 * +(0, i.I...) + 1
 end
-
-Arr3 = FastArray(0:3, 0, 0){Int}
-arr3 = Arr3(:,4,5)
-
-# Test the examples given in the README
-
-# A (10x10) fixed-size array
-typealias Arr2d_10x10 FastArray(1:10, 1:10)
-a2 = Arr2d_10x10{Float64}(:,:)
-
-# A 3d array with lower index bounds 0
-typealias Arr3d_lb0 FastArray(0, 0, 0)
-a3 = Arr3d_lb0{Float64}(9, 9, 9)
-
-# A generic array, all bounds determined at creation time
-typealias Arr4d_generic FastArray(:, :, :, :)
-a4 = Arr4d_generic{Float64}(1:10, 0:10, -1:10, 15:15)
-
-# These can be mixed: A (2x10) array
-FastArray(0:1, 1){Float64}(:, 10)
-
-# Arrays can also be empty:
-FastArray(4:13, 10:9)
-FastArray(:){Int}(5:0)
-
-# The trivial 0d array, always holding one scalar value:
-FastArray(){Int}
-
-# Cartesian iteration
-for i in eachindex(a3)
-    a3[i] = 1
-end
-@test a3[0,0,0] == 1
-@test a3[1,2,3] == 1
-@test a3[9,9,9] == 1
-s = zero(eltype(a3))
-for k in 0:9, j in 0:9, i in 0:9
-    s += a3[i,j,k]
-end
-@test s == 1000
-
-# Linear iteration
-for i in 1:length(a3)
-    a3[LinearIndex(i)] = 2
-end
-@test a3[0,0,0] == 2
-@test a3[1,2,3] == 2
-@test a3[9,9,9] == 2
-s = zero(eltype(a3))
-for k in 0:9, j in 0:9, i in 0:9
-    s += a3[i,j,k]
-end
-@test s == 2000
-
-# linearize(x) = collect(x)
-linearize(x) = [x...]
-
-@test linearize(arr0) == [42]
-@test linearize(arr1_fix) == [43, 44, 45, 46, 47, 48, 49, 50, 51, 52]
-@test length(linearize(arr1_gen)) == 10
-@test length(linearize(arr3)) == length(arr3)
-@test length(linearize(a4)) == length(a4)
-
-# 10D arrays
-typealias BinArr10d FastArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
-a10b = BinArr10d{Complex128}(:,:,:,:,:,:,:,:,:,:)
-@test length(a10b) == 2^10
-for i in eachindex(a10b)
-    a10b[i] = 1
-end
-@test sum(a10b) == 2^10
-
-typealias Arr10d FastArray(:,:,:,:,:,:,:,:,:,:)
-a10 = Arr10d{Complex128}(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
-@test length(a10) == 2^10
-for i in eachindex(a10b)
-    a10[i] = 1
-end
-@test sum(a10) == 2^10
-
-# Element-wise iteration
-s = zero(eltype(a3))
-for a in a3
-    s += a
-end
-@test s == 2000
-
-# Bounds checking
-@test_throws BoundsError a3[-1,0,0]
-@test_throws BoundsError a3[0,-1,0]
-@test_throws BoundsError a3[0,0,-1]
-@test_throws BoundsError a3[10,0,0]
-@test_throws BoundsError a3[0,10,0]
-@test_throws BoundsError a3[0,0,10]
-
-# Immutable arrays
-
-typealias I0 ImmutableArray()
-i0 = I0{Int}()
-@test sizeof(i0) == sizeof(Int)*2^0
-for i in eachindex(i0)
-    i0 = setindex(i0, 1, i)
-end
-@test sum(i0) == 2^0
-
-typealias I1 ImmutableArray(0:1)
-i1 = I1{Int}(:)
-@test sizeof(i1) == sizeof(Int)*2^1
-for i in eachindex(i1)
-    i1 = setindex(i1, 1, i)
-end
-@test sum(i1) == 2^1
-
-typealias I2 ImmutableArray(0:1, 0:1)
-i2 = I2{Int}(:,:)
-@test sizeof(i2) == sizeof(Int)*2^2
-for i in eachindex(i2)
-    i2 = setindex(i2, 1, i)
-end
-@test sum(i2) == 2^2
-
-typealias I10 ImmutableArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
-i10 = I10{Int}(:,:,:,:,:,:,:,:,:,:)
-@test sizeof(i10) == sizeof(Int)*2^10
-
-@test linearize(i0) == [1]
-@test linearize(i1) == [1, 1]
-@test linearize(i2) == [1, 1, 1, 1]
-@test length(linearize(i10)) == length(i10)
-
-# Functor, Applicative Functor
-
-r2 = map(x->1, a2)
-@test r2[1,1] === r2[10,10] === 1
-q2 = map((x,y) -> y+1.0, a2, r2)
-@test q2[1,1] === q2[10,10] === 2.0
-
-ri2 = map(x->1, i2)
-@test ri2[0,0] === ri2[1,1] === 1
-qi2 = map((x,y) -> y+1.0, i2, ri2)
-@test qi2[0,0] === qi2[1,1] === 2.0
-
-# Foldable
-
-@test reduce(+, 0, r2) === 100
-@test mapreduce((x,y) -> x+y, +, 0.0, r2, q2) === 300.0
-
-@test reduce(+, 0, ri2) === 4
-@test mapreduce((x,y) -> x+y, +, 0.0, ri2, qi2) === 12.0
-
-# A real-world example
-
-typealias Box FastArray(0:9, 0){Int}
-
-function init()
-    b = Box(:, 19)
-    @inbounds for j in 0:ubnd(b,2)
-        @simd for i in 0:9
-            b[i,j] = 9-i
-        end
-    end
-    b
-end
-
-function process(oldb::Box)
-    b = Box(:, ubnd(oldb,2))
-    @inbounds for j in 0:ubnd(b,2)
-        @simd for i in 0:9
-            b[i,j] = oldb[oldb[i,j],j]
-        end
-    end
-    b
-end
-
-b = init()
-b2 = process(b)
-@test [b2[i,12] for i in 0:9] == linearize(0:9)
+@test vec(a2ffff_f64) ==
+    [1, 3, 5, 7, 3, 5, 7, 9, 5, 7, 9, 11, 7, 9, 11, 13, 9, 11, 13, 15]
+@test collect(a2ffff_f64) == [1 3 5 7 9; 3 5 7 9 11; 5 7 9 11 13; 7 9 11 13 15]
