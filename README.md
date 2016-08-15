@@ -4,7 +4,6 @@
 
 [![Build Status](https://travis-ci.org/eschnett/FastArrays.jl.svg?branch=master)](https://travis-ci.org/eschnett/FastArrays.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/qrpo2bagojcmkb6h/branch/master?svg=true)](https://ci.appveyor.com/project/eschnett/fastarrays-jl/branch/master)
-
 [![codecov.io](https://codecov.io/github/eschnett/FastArrays.jl/coverage.svg?branch=master)](https://codecov.io/github/eschnett/FastArrays.jl?branch=master)
 [![Dependency Status](https://dependencyci.com/github/eschnett/FastArrays.jl/badge)](https://dependencyci.com/github/eschnett/FastArrays.jl)
 
