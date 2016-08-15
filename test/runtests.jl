@@ -47,6 +47,7 @@ a1ff_f64[3] = 2
 
 typealias tycon1fd FastArray(0)
 typealias ty1fd tycon1fd{Float64}
+@test FastArray((0, nothing)) == tycon1fd
 a1fd_f64 = ty1fd(3)
 
 @test ndims(a1fd_f64) === 1
@@ -93,6 +94,7 @@ a1df_f64[3] = 2
 
 typealias tycon1dd FastArray(:)
 typealias ty1dd tycon1dd{Float64}
+@test FastArray((nothing, nothing)) == tycon1dd
 a1dd_f64 = ty1dd(0:3)
 
 @test ndims(a1dd_f64) === 1
@@ -118,6 +120,7 @@ a1dd_f64[3] = 2
 
 typealias tycon2ffff FastArray(0:3, 0:4)
 typealias ty2ffff tycon2ffff{Float64}
+@test FastArray((0, 3), (0, 4)) == tycon2ffff
 a2ffff_f64 = ty2ffff(:, :)
 
 @test ndims(a2ffff_f64) === 2
@@ -125,6 +128,8 @@ a2ffff_f64 = ty2ffff(:, :)
 @test size(a2ffff_f64) === (4, 5)
 @test length(a2ffff_f64) === 4 * 5
 @test strides(a2ffff_f64) === (1, 4)
+@test stride(a2ffff_f64, 1) === 1
+@test stride(a2ffff_f64, 2) === 4
 
 a2ffff_f64[0,0] = 1
 @test a2ffff_f64[0,0] === 1.0
@@ -222,6 +227,8 @@ a10_b[1,1,1,1,1,1,1,1,1,1] = false
 
 
 
+@test Base.linearindexing(a2ffff_f64) == Base.LinearFast()
+
 for i in CartesianRange(indices(a0_f64))
     a0_f64[i] = 2 * +(0, i.I...) + 1
 end
@@ -240,3 +247,11 @@ end
 @test vec(a2ffff_f64) ==
     [1, 3, 5, 7, 3, 5, 7, 9, 5, 7, 9, 11, 7, 9, 11, 13, 9, 11, 13, 15]
 @test collect(a2ffff_f64) == [1 3 5 7 9; 3 5 7 9 11; 5 7 9 11 13; 7 9 11 13 15]
+
+v2ffff_f64 = Float64[]
+st = start(a2ffff_f64)
+while !done(a2ffff_f64, st)
+    val, st = next(a2ffff_f64, st)
+    push!(v2ffff_f64, val)
+end
+@test v2ffff_f64 == vec(a2ffff_f64)
