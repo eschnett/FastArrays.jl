@@ -1,8 +1,5 @@
 module FastArrays
 
-# using Base.Cartesian
-# using Compat
-
 export AbstractFastArray
 export AbstractImmutableFastArray, AbstractMutableFastArray
 abstract AbstractFastArray{T, N} <: DenseArray{T, N}
