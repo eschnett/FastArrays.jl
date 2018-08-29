@@ -4,7 +4,7 @@ using FastArrays
 const tycon0 = FastArray()
 FastArray(())
 const ty0 = tycon0{Float64}
-a0_f64 = ty0()
+a0_f64 = ty0(undef)
 
 @test ndims(a0_f64) === 0
 @test axes(a0_f64) === ()
@@ -24,7 +24,7 @@ a0_f64[] = 1
 const tycon1ff = FastArray(0:3)
 const tycon1ff = FastArray(0:3)
 const ty1ff = tycon1ff{Float64}
-a1ff_f64 = ty1ff(:)
+a1ff_f64 = ty1ff(undef, :)
 
 @test ndims(a1ff_f64) === 1
 @test axes(a1ff_f64) === (0:3,)
@@ -48,7 +48,7 @@ a1ff_f64[3] = 2
 const tycon1fd = FastArray(0)
 const ty1fd = tycon1fd{Float64}
 @test FastArray((0, nothing)) == tycon1fd
-a1fd_f64 = ty1fd(3)
+a1fd_f64 = ty1fd(undef, 3)
 
 @test ndims(a1fd_f64) === 1
 @test axes(a1fd_f64) === (0:3,)
@@ -71,7 +71,7 @@ a1fd_f64[3] = 2
 
 const tycon1df = FastArray((nothing, 3))
 const ty1df = tycon1df{Float64}
-a1df_f64 = ty1df((0, nothing))
+a1df_f64 = ty1df(undef, (0, nothing))
 
 @test ndims(a1df_f64) === 1
 @test axes(a1df_f64) === (0:3,)
@@ -95,7 +95,7 @@ a1df_f64[3] = 2
 const tycon1dd = FastArray(:)
 const ty1dd = tycon1dd{Float64}
 @test FastArray((nothing, nothing)) == tycon1dd
-a1dd_f64 = ty1dd(0:3)
+a1dd_f64 = ty1dd(undef, 0:3)
 
 @test ndims(a1dd_f64) === 1
 @test axes(a1dd_f64) === (0:3,)
@@ -121,7 +121,7 @@ a1dd_f64[3] = 2
 const tycon2ffff = FastArray(0:3, 0:4)
 const ty2ffff = tycon2ffff{Float64}
 @test FastArray((0, 3), (0, 4)) == tycon2ffff
-a2ffff_f64 = ty2ffff(:, :)
+a2ffff_f64 = ty2ffff(undef, :, :)
 
 @test ndims(a2ffff_f64) === 2
 @test axes(a2ffff_f64) === (0:3, 0:4)
@@ -152,7 +152,7 @@ a2ffff_f64[3,4] = 2
 
 const tycon2fffd = FastArray(0:3, 0)
 const ty2fffd = tycon2fffd{Float64}
-a2fffd_f64 = ty2fffd(:, 4)
+a2fffd_f64 = ty2fffd(undef, :, 4)
 
 @test ndims(a2fffd_f64) === 2
 @test axes(a2fffd_f64) === (0:3, 0:4)
@@ -183,7 +183,7 @@ a2fffd_f64[3,4] = 2
 
 const tycon4fffffdfd = FastArray(0:3, 0:4, 1, 1)
 const ty4fffffdfd = tycon4fffffdfd{Float64}
-a4fffffdfd_f64 = ty4fffffdfd(:, :, 5, 6)
+a4fffffdfd_f64 = ty4fffffdfd(undef, :, :, 5, 6)
 
 @test ndims(a4fffffdfd_f64) === 4
 @test axes(a4fffffdfd_f64) === (0:3, 0:4, 1:5, 1:6)
@@ -212,7 +212,7 @@ a4fffffdfd_f64[3,4,5,6] = 2
 
 const tycon10 = FastArray(0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1, 0:1)
 const ty10 = tycon10{Bool}
-a10_b = ty10(:,:,:,:,:,:,:,:,:,:)
+a10_b = ty10(undef, :,:,:,:,:,:,:,:,:,:)
 
 @test ndims(a10_b) === 10
 @test axes(a10_b) === ntuple(i->0:1, 10)

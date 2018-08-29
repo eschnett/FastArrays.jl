@@ -1,7 +1,7 @@
 name = "FastArrays"
 uuid = "a717a64c-1c0d-4a1b-93d0-67993d3c613d"
 authors = ["Erik Schnetter <schnetter@gmail.com>"]
-version = "3.0.0"
+version = "4.0.0"
 
 [deps]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

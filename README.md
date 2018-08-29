@@ -23,22 +23,22 @@ using FastArrays
 
 # A (10x10) fixed-size array
 const Arr2d_10x10 = FastArray(1:10, 1:10)
-a2 = Arr2d_10x10{Float64}(:,:)
+a2 = Arr2d_10x10{Float64}(undef, :, :)
 
 # A 3d array with lower index bounds 0
 const Arr3d_lb0 = FastArray(0, 0, 0)
-a3 = Arr3d_lb0{Float64}(9, 9, 9)
+a3 = Arr3d_lb0{Float64}(undef, 9, 9, 9)
 
 # A generic array, all bounds determined at creation time
 const Arr4d_generic = FastArray(:, :, :, :)
-a4 = Arr4d_generic{Float64}(1:10, 0:10, -1:10, 15:15)
+a4 = Arr4d_generic{Float64}(undef, 1:10, 0:10, -1:10, 15:15)
 
 # These can be mixed: A (2x10) array
-FastArray(0:1, 1){Float64}(:, 10)
+FastArray(0:1, 1){Float64}(undef, :, 10)
 
 # Arrays can also be empty:
 FastArray(4:13, 10:9)
-FastArray(:){Int}(5:0)
+FastArray(:){Int}(undef, 5:0)
 
 # The trivial 0d array type, always holding one scalar value:
 FastArray(){Int}
@@ -89,14 +89,14 @@ Each fast array type is subtype of `AbstractFastArray{T,N}`, where `T` is the el
 - Allocate an array:
 
   ```Julia
-  FastArray(<dimspec>*){<type>}(<flexible bounds>*)
+  FastArray(<dimspec>*){<type>}(undef, <flexible bounds>*)
   ```
 
   Example:
   Create an array with bounds `(1:2, 1:10, 1:10)`:
 
   ```Julia
-  myarray = MyArrayType{Float64}(:, 10, 1:10)
+  myarray = MyArrayType{Float64}(undef, :, 10, 1:10)
   ```
 
 - Element type:

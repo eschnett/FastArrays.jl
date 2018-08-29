@@ -22,7 +22,7 @@ struct MutableFastArrayImpl{
 
     function MutableFastArrayImpl{
             N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, T}(
-                dynbnds::DynBnds) where {
+                ::UndefInitializer, dynbnds::DynBnds) where {
                     N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, T}
         check_invariant(
             Val{N}, Val{FixedBnds}, DynBnds, DynStrs, DynLen, DynOff)
@@ -37,7 +37,7 @@ end
 
 @generated function MutableFastArrayImpl{
         N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, T}(
-            bnds::BndSpec...) where {
+            ::UndefInitializer, bnds::BndSpec...) where {
                 N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, T}
     @assert nfields(bnds) == N
     dynbnds = []
@@ -58,7 +58,7 @@ end
     dynbnds = :(tuple($(dynbnds...)))
     quote
         MutableFastArrayImpl{
-            N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, T}($dynbnds)
+            N, FixedBnds, DynBnds, DynStrs, DynLen, DynOff, T}(undef, $dynbnds)
     end
 end
 
