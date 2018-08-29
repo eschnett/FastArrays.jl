@@ -22,15 +22,15 @@ Here is an example:
 using FastArrays
 
 # A (10x10) fixed-size array
-typealias Arr2d_10x10 FastArray(1:10, 1:10)
+const Arr2d_10x10 = FastArray(1:10, 1:10)
 a2 = Arr2d_10x10{Float64}(:,:)
 
 # A 3d array with lower index bounds 0
-typealias Arr3d_lb0 FastArray(0, 0, 0)
+const Arr3d_lb0 = FastArray(0, 0, 0)
 a3 = Arr3d_lb0{Float64}(9, 9, 9)
 
 # A generic array, all bounds determined at creation time
-typealias Arr4d_generic FastArray(:, :, :, :)
+const Arr4d_generic = FastArray(:, :, :, :)
 a4 = Arr4d_generic{Float64}(1:10, 0:10, -1:10, 15:15)
 
 # These can be mixed: A (2x10) array
@@ -83,7 +83,7 @@ Each fast array type is subtype of `AbstractFastArray{T,N}`, where `T` is the el
   Example:
 
   ```Julia
-  typealias MyArrayType = FastArray(1:2, 1, :)
+  const MyArrayType = FastArray(1:2, 1, :)
   ```
 
 - Allocate an array:
